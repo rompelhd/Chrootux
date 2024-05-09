@@ -26,3 +26,13 @@
     </td>
   </tr>
 </table>
+
+<p align="center">
+    <i>Green means that updates are periodical, yellow means sporadic.</i>
+</p>
+
+<br/>
+
+<p align="center">
+    Chrootux is a powerful tool written in C++ that enables virtualization of architectures, making it ideal for embedded ARM devices and Android via Termux. With Chrootux, users can execute various Linux distributions seamlessly, expanding the capabilities of their devices.Key Features:Architecture Virtualization: Chrootux provides the capability to virtualize architectures, allowing users to run Linux distributions on diverse platforms.Embedded ARM Support: Chrootux is optimized for embedded ARM devices, offering enhanced performance and compatibility.Integration with Termux: By leveraging Termux, Chrootux seamlessly integrates with Android devices, extending their functionality to support Linux distributions.Flexible and Efficient: Developed in C++, Chrootux prioritizes efficiency and flexibility, ensuring smooth execution and minimal resource consumption.Diverse Linux Distribution Support: With Chrootux, users can choose from a wide range of Linux distributions, enabling customization and versatility.
+</p>
