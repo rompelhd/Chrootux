@@ -1,1 +1,28 @@
-# Chrootux
+<p align="center">
+    <img src= "https://github.com/rompelhd/Chrootux/assets/75935831/00e4077b-55d9-4a21-abf5-062d98b65045" alt="Etree"
+</p>
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <a href="https://apache.org/licenses/LICENSE-2.0.txt"><img src="https://img.shields.io/badge/License-Apache%20License%20-green.svg" alt="License: Apache License"></a>
+    </td>
+    <td align="center">
+      <img src="https://img.shields.io/badge/Build-Passing-green" alt="Build Passing">
+    </td>
+    <td align="center">
+      <img src="https://img.shields.io/badge/Version-v0.3.7-blue" alt="Version">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="https://img.shields.io/badge/Author-rompelhd-red" alt="Author: rompelhd">
+    </td>
+    <td align="center">
+      <img src="https://img.shields.io/badge/Arch-arm64%20%7C%20x86--64%20%7C%20termux64-green?style=flat&labelColor=gray" alt="Arch">
+    </td>
+    <td align="center">
+      <img src="https://img.shields.io/badge/Arch-armhf%20%7C%20i386%20%7C%20termuxhf-yellow?style=flat&labelColor=gray" alt="Arch">
+    </td>
+  </tr>
+</table>
