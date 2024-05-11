@@ -6,16 +6,8 @@
 #include <unistd.h>
 #include <vector>
 #include <sys/mount.h>
-
-// Colors
-#define greenColour "\e[0;32m\033[1m"
-#define endColour "\033[0m\e[0m"
-#define redColour "\e[0;31m\033[1m"
-#define blueColour "\e[0;34m\033[1m"
-#define yellowColour "\e[0;33m\033[1m"
-#define purpleColour "\e[0;35m\033[1m"
-#define turquoiseColour "\e[0;36m\033[1m"
-#define grayColour "\e[0;37m\033[1m"
+#include "../include/basic.hpp"
+#include "../include/install.hpp"
 
 struct MountData {
     std::string source;
@@ -23,39 +15,31 @@ struct MountData {
     std::string fs_type;
 };
 
-bool debug = false;
-
-void printDebugMessage(const std::string& message) {
-    if (debug) {
-        std::cerr << "[DEBUG] " << message << std::endl;
-    }
-}
-
 void printBanner() {
     std::cout <<
 R"(
-                                                                                      _nnnn_
-                                                                                     dGGGGMMb     ,""""""""""""""""""""".
-                                                                                    @p~qp~~qMb    | Fucking /bin/bash ! |
-                                                                                    M|@||@) M|   _;.....................'
- ██████╗██╗  ██╗██████╗  ██████╗  ██████╗ ████████╗██╗   ██╗██╗  ██╗                @,----.JM| -'
-██╔════╝██║  ██║██╔══██╗██╔═══██╗██╔═══██╗╚══██╔══╝██║   ██║╚██╗██╔╝               JS^\__/  qKL
-██║     ███████║██████╔╝██║   ██║██║   ██║   ██║   ██║   ██║ ╚███╔╝              dZP        qKRb
-██║     ██╔══██║██╔══██╗██║   ██║██║   ██║   ██║   ██║   ██║ ██╔██╗             dZP          qKKb
-╚██████╗██║  ██║██║  ██║╚██████╔╝╚██████╔╝   ██║   ╚██████╔╝██╔╝ ██╗            fZP            SMMb
- ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝    ╚═╝    ╚═════╝ ╚═╝  ╚═╝            HZM            MMMM
-v0.3.7                                      Tool Written By Rompelhd            FqM            MMMM
-                                                                              __| ".        |\dS"qML
-                                                                              |    `.       | `' \Zq
-                                                                             _)      \.___.,|     .'
-                                                                             \____   )MMMMMM|   .'
-                                                                                  `-'       `--' hjm
+                                                                                  _nnnn_
+                                                                                 dGGGGMMb     ,""""""""""""""""""""".
+                                                                                @p~qp~~qMb    | Fucking /bin/bash ! |
+                                                                                M|@||@) M|   _;.....................'
+ ██████╗██╗  ██╗██████╗  ██████╗  ██████╗ ████████╗██╗   ██╗██╗  ██╗            @,----.JM| -'
+██╔════╝██║  ██║██╔══██╗██╔═══██╗██╔═══██╗╚══██╔══╝██║   ██║╚██╗██╔╝           JS^\__/  qKL
+██║     ███████║██████╔╝██║   ██║██║   ██║   ██║   ██║   ██║ ╚███╔╝          dZP        qKRb
+██║     ██╔══██║██╔══██╗██║   ██║██║   ██║   ██║   ██║   ██║ ██╔██╗         dZP          qKKb
+╚██████╗██║  ██║██║  ██║╚██████╔╝╚██████╔╝   ██║   ╚██████╔╝██╔╝ ██╗        fZP            SMMb
+ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝    ╚═╝    ╚═════╝ ╚═╝  ╚═╝        HZM            MMMM
+                                                                            FqM            MMMM
+v0.3.7                                      Tool Written By Rompelhd      __| ".        |\dS"qML
+                                                                          |    `.       | `' \Zq
+                                                                         _)      \.___.,|     .'
+                                                                         \____   )MMMMMM|   .'
+                                                                              `-'       `--' hjm
 
 )";
 }
 
 void usage() {
-    std::cout << "\n" << purpleColour << "Uso: chrootux [OPCIONES] [COMANDOS]\n\n"
+    std::cout << "\n" << Colours::purpleColour << "Uso: chrootux [OPCIONES] [COMANDOS]\n\n"
               << "Opciones:\n"
               << "  -i INFO               La informacion actual del chroot\n"
               << "  -c CREATE             Permite la creacion de un usuario\n"
@@ -65,12 +49,12 @@ void usage() {
               << "  -h HELP               Enseña esta ayuda\n\n"
               << "Warning, use of this script is at your own risk.\n"
               << "I am not responsible for your wrongdoings.\n"
-              << endColour << std::endl;
+              << Colours::endColour << std::endl;
 }
 
 void checkRoot() {
     if (geteuid() != 0) {
-        std::cout << "\n" << redColour << "[*] No eres fucking root" << endColour << std::endl;
+        std::cout << "\n" << Colours::redColour << "[*] No eres fucking root" << Colours::endColour << std::endl;
         exit(0);
     }
 }
@@ -102,12 +86,15 @@ int main(int argc, char *argv[]) {
     setenv("PATH", "/sbin:/usr/bin:/usr/sbin:/system/bin:/system/xbin:$PATH", 1);
     setenv("USER", "root", 1);
     setenv("HOME", "/", 1);
+    setenv("SHELL", "/bin/bash", 1);
     setenv("TERM", "xterm", 1);
+    setenv("TZ", "Europe/Madrid", 1);
     setenv("LANGUAGE", "C", 1);
     setenv("LANG", "C", 1);
 
     // ScriptVariables
-    const std::string ROOTFS_DIR = "/data/data/com.termux/files/home/arch";
+//    const std::string ROOTFS_DIR = "/data/data/com.termux/files/home/arch";
+    const std::string ROOTFS_DIR = "/data/data/com.termux/files/home/machines/kalifs-armhf-minimal/kali-armhf";
 
     std::vector<MountData> mount_list = {
     {"/dev", ROOTFS_DIR + "/dev", ""},
@@ -119,25 +106,41 @@ int main(int argc, char *argv[]) {
  //   {"/android", ROOTFS_DIR + "/android", ""}
     };
 
+    const char* home_dir = std::getenv("HOME");
+    if (home_dir != nullptr) {
+        std::string machines_folder = createMachinesFolderIfNotExists(home_dir);
+    } else {
+        std::cerr << "No se pudo obtener la ubicación de la carpeta home." << std::endl;
+    }
+
     if (argc > 1) {
-        if (std::string(argv[1]) == "-h") {
+        if (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help") {
             usage();
             return 0;
         } else if (std::string(argv[1]) == "-i") {
             std::cout << "Hola" << std::endl;
+            return 0;
+        } else if (std::string(argv[1]) == "-d") {
+            install();
             return 0;
         }
     }
 
     checkRoot();
 
+    int archResult = archchecker();
+    if (archResult != 0) {
+        std::cerr << "Error al verificar la arquitectura. Saliendo del programa." << std::endl;
+        return 1;
+    }
+
     for (const auto& entry : mount_list) {
         mountFileSystem(entry.source, entry.target, entry.fs_type);
 
         if (isMounted(entry.target)) {
-            std::cout << "[" << greenColour << "✔" << endColour << "] Mounted: " << entry.source << " ==> " << entry.target << std::endl;
+            std::cout << "[" << Colours::greenColour << "✔" << Colours::endColour << "] Mounted: " << entry.source << " ==> " << entry.target << std::endl;
         } else {
-            std::cerr << redColour << "[" << "✘" << endColour << "] Error: Mounting in " << entry.target << std::endl;
+            std::cerr << Colours::redColour << "[" << "✘" << Colours::endColour << "] Error: Mounting in " << entry.target << std::endl;
     }
 }
 
@@ -148,23 +151,21 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    printDebugMessage("Chroot realizado correctamente");
-
     if (chdir("/") != 0) {
         perror("Error al cambiar el directorio de trabajo");
         exit(EXIT_FAILURE);
     }
-
-    printDebugMessage("Directorio de trabajo cambiado correctamente");
-
-    printDebugMessage("Ejecutando shell interactivo de Bash");
 
     if (execl("/bin/bash", "bash", NULL) == -1) {
         perror("Error al ejecutar el shell interactivo de bash");
         exit(EXIT_FAILURE);
     }
 
-    printDebugMessage("Shell interactivo de Bash finalizado");
+    //Alpine linux
+    //if (execl("/bin/sh", "sh", NULL) == -1) {
+    //    perror("Error al ejecutar el shell interactivo de bash");
+    //    exit(EXIT_FAILURE);
+    //}
 
     // Desmontaje
     for (const auto& entry : mount_list) {
