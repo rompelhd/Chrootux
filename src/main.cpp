@@ -64,16 +64,27 @@ bool isMounted(const std::string& path) {
     return statvfs(path.c_str(), &fsInfo) == 0;
 }
 
+
 void mountFileSystem(const std::string& source, const std::string& target, const std::string& fs_type) {
-    if (mount(source.c_str(), target.c_str(), fs_type.c_str(), MS_BIND, nullptr) != 0) {
+    int flags = MS_BIND | MS_REC;
+
+    if (mount(source.c_str(), target.c_str(), fs_type.c_str(), flags, nullptr) != 0) {
         std::cerr << "Error al montar el sistema de archivos: " << strerror(errno) << std::endl;
         exit(EXIT_FAILURE);
     }
 }
 
 void unmountFileSystem(const std::string& target) {
-    if (umount(target.c_str()) != 0) {
-        perror("Error al desmontar el sistema de archivos");
+    if (umount2(target.c_str(), MNT_DETACH) != 0) {
+        std::cerr << "Error al desmontar el sistema de archivos: " << strerror(errno) << std::endl;
+    } else {
+        std::cout << "[" << Colours::greenColour << "✔" << Colours::endColour << "] Unmounted: " << target << std::endl;
+    }
+}
+
+void runTest() {
+    if (execl("/bin/bash", "bash", "-c", "ls; cat /etc/os-release; exit", NULL) == -1) {
+        perror("Error al ejecutar los comandos");
         exit(EXIT_FAILURE);
     }
 }
@@ -85,7 +96,7 @@ int main(int argc, char *argv[]) {
     // EnvVariables
     setenv("PATH", "/sbin:/usr/bin:/usr/sbin:/system/bin:/system/xbin:$PATH", 1);
     setenv("USER", "root", 1);
-    setenv("HOME", "/", 1);
+    setenv("HOME", "/root", 1);
     setenv("SHELL", "/bin/bash", 1);
     setenv("TERM", "xterm", 1);
     setenv("TZ", "Europe/Madrid", 1);
@@ -93,14 +104,12 @@ int main(int argc, char *argv[]) {
     setenv("LANG", "C", 1);
 
     // ScriptVariables
-//    const std::string ROOTFS_DIR = "/data/data/com.termux/files/home/arch";
     const std::string ROOTFS_DIR = "/data/data/com.termux/files/home/machines/kalifs-armhf-minimal/kali-armhf";
 
     std::vector<MountData> mount_list = {
     {"/dev", ROOTFS_DIR + "/dev", ""},
     {"/sys", ROOTFS_DIR + "/sys", ""},
     {"/proc", ROOTFS_DIR + "/proc", ""},
-    {"/dev/pts", ROOTFS_DIR + "/dev/pts", ""},
 //    {"/sdcard", ROOTFS_DIR + "/sdcard", ""},
 //    {"/tmp", ROOTFS_DIR + "/tmp", "tmpfs"},
  //   {"/android", ROOTFS_DIR + "/android", ""}
@@ -120,6 +129,8 @@ int main(int argc, char *argv[]) {
         } else if (std::string(argv[1]) == "-i") {
             std::cout << "Hola" << std::endl;
             return 0;
+        } else if (std::string(argv[1]) == "--debug") {
+            bool flag = true;
         } else if (std::string(argv[1]) == "-d") {
             install();
             return 0;
@@ -127,6 +138,7 @@ int main(int argc, char *argv[]) {
     }
 
     checkRoot();
+
 
     int archResult = archchecker();
     if (archResult != 0) {
@@ -144,33 +156,46 @@ int main(int argc, char *argv[]) {
     }
 }
 
-    std::cout << "\n" << "[ Chrooting ... ]\n" << std::endl;
+    pid_t pid = fork();
 
-    if (chroot(ROOTFS_DIR.c_str()) != 0) {
-        perror("Error al hacer chroot");
+    if (pid == 0) {
+        std::cout << "\n" << "[ Chrooting ... ]\n" << std::endl;
+
+        if (chroot(ROOTFS_DIR.c_str()) != 0) {
+            perror("Error al hacer chroot");
+            exit(EXIT_FAILURE);
+        }
+
+        if (chdir("/") != 0) {
+            perror("Error al cambiar el directorio de trabajo");
+            exit(EXIT_FAILURE);
+        }
+
+        if (setenv("DEVPTS_MOUNT", "/dev/pts", 1) != 0) {
+            perror("Error al establecer la variable de entorno");
+            return 1;
+        }
+
+        //runTest();
+
+        if (execl("/bin/bash", "bash", NULL) == -1) {
+            perror("Error al ejecutar el shell interactivo de bash");
+            exit(EXIT_FAILURE);
+        }
+
+        bool flag;
+
+    } else if (pid > 0) {
+        int status;
+        waitpid(pid, &status, 0);
+        std::cout << "\n" << std::endl;
+
+        for (const auto& entry : mount_list) {
+            unmountFileSystem(entry.target);
+        }
+    } else {
+        perror("Error al crear el proceso hijo");
         exit(EXIT_FAILURE);
-    }
-
-    if (chdir("/") != 0) {
-        perror("Error al cambiar el directorio de trabajo");
-        exit(EXIT_FAILURE);
-    }
-
-    if (execl("/bin/bash", "bash", NULL) == -1) {
-        perror("Error al ejecutar el shell interactivo de bash");
-        exit(EXIT_FAILURE);
-    }
-
-    //Alpine linux
-    //if (execl("/bin/sh", "sh", NULL) == -1) {
-    //    perror("Error al ejecutar el shell interactivo de bash");
-    //    exit(EXIT_FAILURE);
-    //}
-
-    // Desmontaje
-    for (const auto& entry : mount_list) {
-    std::cout << "[ Desmontando " << entry.target << " ... ]" << std::endl;
-    unmountFileSystem(entry.target);
     }
 
     return 0;
