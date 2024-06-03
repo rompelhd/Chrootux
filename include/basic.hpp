@@ -1,6 +1,7 @@
 #ifndef BASIC_HPP
 #define BASIC_HPP
 
+#include <vector>
 #include <string>
 
 namespace Colours {
@@ -14,11 +15,25 @@ namespace Colours {
     const std::string grayColour = "\033[1;37m";
 }
 
+struct MountData {
+    std::string source;
+    std::string target;
+    std::string fs_type;
+};
+
+extern std::string os_name;
+
 extern bool debug;
 
 extern std::string machines_folder;
 
 void printDebugMessage(const std::string& message);
+
+std::vector<std::string> getDirectories(const std::string& folderPath);
+
+void machinesOn();
+
+void getInstalledPackages();
 
 std::string createMachinesFolderIfNotExists(const std::string& home_dir);
 
