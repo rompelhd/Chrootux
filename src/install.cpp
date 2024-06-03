@@ -5,12 +5,14 @@
 #include <curl/curl.h>
 #include <archive.h>
 #include <archive_entry.h>
+#include <sys/stat.h>
+
+std::pair<std::string, std::string> fileInfo;
 
 struct OperatingSystem {
     std::string name;
     std::string url;
 };
-
 
 int showMenu(const std::vector<OperatingSystem>& osList) {
     std::cout << "Seleccione el sistema operativo que desea descargar:\n";
@@ -21,6 +23,7 @@ int showMenu(const std::vector<OperatingSystem>& osList) {
     int choice;
     std::cout << "Ingrese el número correspondiente: ";
     std::cin >> choice;
+    std::cout << "\n";
 
     if (choice < 1 || choice > static_cast<int>(osList.size())) {
         std::cout << "Selección no válida. Por favor, elija un número entre 1 y " << osList.size() << ".\n";
@@ -72,27 +75,54 @@ int archchecker() {
         return 1;
     }
 
-    for (const auto& fileInfo : matchingFileInfos) {
-        std::cout << fileInfo.first << std::endl;
-    }
+    fileInfo = matchingFileInfos[0];
     return 0;
 }
 
-void install() {
-    std::vector<OperatingSystem> osListArmhf = {
-        {"Alpine Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/armhf/alpine-minirootfs-3.19.1-armhf.tar.gz"},
-        {"Kali Linux Minimal", "https://kali.download/nethunter-images/current/rootfs/kalifs-armhf-minimal.tar.xz"},
-        {"Debian", "https://rcn-ee.net/rootfs/debian-armhf-12-bookworm-minimal-mainline/2024-05-08/am57xx-debian-12.5-minimal-armhf-2024-05-08-2gb.img.xz"},
-        {"ParrotOS", "https://raw.githubusercontent.com/EXALAB/AnLinux-Resources/master/Rootfs/Parrot/armhf/parrot-rootfs-armhf.tar.gz"}
-    };
+std::pair<std::string, std::string> install() {
+    std::vector<OperatingSystem> osList;
+    if (fileInfo.first == "armhf") {
+        osList = {
+            {"Arch-Linux", "http://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz"},
+            {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/armhf/alpine-minirootfs-3.19.1-armhf.tar.gz"},
+            {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kalifs-armhf-minimal.tar.xz"},
+            {"Debian", "https://rcn-ee.net/rootfs/debian-armhf-12-bookworm-minimal-mainline/2024-05-08/am57xx-debian-12.5-minimal-armhf-2024-05-08-2gb.img.xz"},
+            {"ParrotOS", "https://raw.githubusercontent.com/EXALAB/AnLinux-Resources/master/Rootfs/Parrot/armhf/parrot-rootfs-armhf.tar.gz"}
+        };
+    } else if (fileInfo.first == "arm64") {
+        osList = {
+            {"Arch-Linux", "https://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"},
+            {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.0-aarch64.tar.gz"},
+            {"Kali-Linux-Minimal", ""},
+            {"Debian", ""},
+            {"ParrotOS", ""}
+        };
+    } else if (fileInfo.first == "amd64") {
+        osList = {
+            {"Arch-Linux", ""},
+            {"Alpine-Linux", ""},
+            {"Kali-Linux-Minimal", ""},
+            {"Debian", ""},
+            {"ParrotOS", ""}
+        };
+    } else {
+        std::cerr << "Arquitectura no compatible: " << fileInfo.first << std::endl;
+        return {};
+    }
 
     int selection;
     do {
-        selection = showMenu(osListArmhf);
+        selection = showMenu(osList);
     } while (selection == -1);
 
-    std::string url = osListArmhf[selection].url;
-    std::string filename = url.substr(url.find_last_of('/') + 1);
+    std::string name = osList[selection].name;
+    std::string url = osList[selection].url;
+    std::string filename;
+    if (!fileInfo.first.empty()) {
+        filename = name + "-" + fileInfo.first + url.substr(url.find_last_of('.'));
+    } else {
+        filename = name + url.substr(url.find_last_of('/'));
+    }
 
     bool success = downloadFile(url, filename);
 
@@ -109,6 +139,8 @@ void install() {
     } else {
         std::cerr << "Error al descargar el archivo." << std::endl;
     }
+
+    return {name, filename};
 }
 
 bool extractArchive(const std::string& filename, const std::string& outputDirectory) {
@@ -181,15 +213,13 @@ int progressCallback(void *clientp, curl_off_t dltotal, curl_off_t dlnow, curl_o
     double percentage = (dltotal > 0) ? (static_cast<double>(dlnow) / static_cast<double>(dltotal)) * 100.0 : 0.0;
 
     auto currentTime = std::chrono::steady_clock::now();
-    double deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - std::chrono::time_point<std::chrono::steady_clock>(std::chrono::milliseconds(static_cast<long long>(progressData->lastTime)))).count() / 1000.0; // Calcular tiempo transcurrido en segundos
-    double downloadSpeed = (deltaTime > 0) ? (static_cast<double>(dlnow - progressData->downloaded) / deltaTime) / (1024 * 1024) : 0;
-    progressData->lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime.time_since_epoch()).count();
+    double deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - std::chrono::time_point<std::chrono::steady_clock>(std::chrono::milliseconds(static_cast<long long>(progressData->lastTime)))).count() / 1000.0;
+    double downloadSpeed = (deltaTime > 0) ? (static_cast<double>(dlnow) - progressData->downloaded) / deltaTime / (1024.0 * 1024.0) : 0.0;
 
-    progressData->downloaded = dlnow;
-    progressData->totalSize = dltotal;
+    progressData->downloaded = static_cast<double>(dlnow);
+    progressData->lastTime = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(currentTime.time_since_epoch()).count());
 
-    std::cout << "Descargado: " << percentage << "% | Velocidad: " << downloadSpeed << " MB/s\r" << std::flush;
-
+    std::cout << "Downloading " << percentage << "% | MB/s: " << downloadSpeed << "\r";
     return 0;
 }
 
@@ -200,15 +230,15 @@ bool downloadFile(const std::string& url, const std::string& filename) {
         return false;
     }
 
-    FILE* outfile = fopen(filename.c_str(), "wb");
-    if (!outfile) {
+    FILE* fp = fopen(filename.c_str(), "wb");
+    if (!fp) {
         std::cerr << "Error al abrir el archivo de salida." << std::endl;
         curl_easy_cleanup(curl);
         return false;
     }
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, outfile);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
 
     ProgressData progressData = {0.0, 0.0, 0.0};
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progressCallback);
@@ -218,12 +248,12 @@ bool downloadFile(const std::string& url, const std::string& filename) {
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         std::cerr << "Error al descargar el archivo: " << curl_easy_strerror(res) << std::endl;
-        fclose(outfile);
+        fclose(fp);
         curl_easy_cleanup(curl);
         return false;
     }
 
-    fclose(outfile);
+    fclose(fp);
     curl_easy_cleanup(curl);
 
     std::cout << "Descarga completada.                             " << std::endl;
