@@ -5,7 +5,7 @@
 #include <vector>
 #include <utility>
 
-void install();
+std::pair<std::string, std::string> install();
 
 bool extractArchive(const std::string& filename, const std::string& outputDirectory);
 bool downloadFile(const std::string& url, const std::string& filename);
