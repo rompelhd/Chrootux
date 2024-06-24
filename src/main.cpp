@@ -215,6 +215,7 @@ int main(int argc, char *argv[]) {
 
     // EnvVariables
     setenv("PATH", "/sbin:/usr/bin:/usr/sbin:/system/bin:/system/xbin:$PATH", 1);
+    setenv("LD_LIBRARY_PATH", "/lib:/usr/lib", 1);
     setenv("USER", "root", 1);
     setenv("HOME", "/root", 1);
     setenv("SHELL", "/bin/bash", 1);
