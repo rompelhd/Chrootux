@@ -33,55 +33,34 @@ int showMenu(const std::vector<OperatingSystem>& osList) {
     return choice - 1;
 }
 
-std::vector<std::pair<std::string, std::string>> getMatchingFileInfos(const char* binaryPath) {
-    std::vector<std::pair<std::string, std::string>> matchingFileInfos;
 
-    std::string command = "file -b " + std::string(binaryPath);
-    FILE* filePipe = popen(command.c_str(), "r");
-    if (!filePipe) {
-        std::cerr << "Error al ejecutar el comando file." << std::endl;
-        return matchingFileInfos;
+std::string arch;
+
+std::string archchecker() {
+#if defined(_M_X64) || defined(__amd64__)
+    arch = "x86_64";
+#elif defined(_M_IX86) || defined(__i386__)
+    arch = "x86";
+#elif defined(_M_ARM) || defined(__arm__)
+    arch = "arm";
+#elif defined(_M_ARM64) || defined(__aarch64__)
+    arch = "aarch64";
+#elif defined(__linux__)
+    struct utsname buffer;
+    if (uname(&buffer) == 0) {
+        arch = buffer.machine;
+    } else {
+        arch = "unknown";
     }
-
-    char fileBuffer[256];
-    while (fgets(fileBuffer, 256, filePipe) != NULL) {
-        std::string fileInfo = fileBuffer;
-        size_t elfPos = fileInfo.find("ELF");
-        size_t elfBitsPos = fileInfo.find("-bit");
-        size_t armPos = fileInfo.find("ARM");
-        if (elfPos != std::string::npos && elfBitsPos != std::string::npos && armPos != std::string::npos) {
-            std::string elf = fileInfo.substr(elfPos, elfBitsPos - elfPos + 4);
-            std::string arm = fileInfo.substr(armPos, fileInfo.find(",", armPos) - armPos);
-
-            if (elf == "ELF 32-bit" && arm == "ARM") {
-                elf = "armhf";
-            } else if (elf == "ELF 64-bit" && arm == "ARM") {
-                elf = "arm64";
-            }
-            matchingFileInfos.push_back({elf, arm});
-        }
-    }
-
-    pclose(filePipe);
-    return matchingFileInfos;
-}
-
-int archchecker() {
-    const char* binaryPath = "/data/data/com.termux/files/usr/bin/apt";
-    std::vector<std::pair<std::string, std::string>> matchingFileInfos = getMatchingFileInfos(binaryPath);
-
-    if (matchingFileInfos.empty()) {
-        std::cerr << "No se encontraron archivos ELF de 32 o 64 bits." << std::endl;
-        return 1;
-    }
-
-    fileInfo = matchingFileInfos[0];
-    return 0;
+#else
+    arch = "unknown";
+#endif
+    return arch;
 }
 
 std::pair<std::string, std::string> install() {
     std::vector<OperatingSystem> osList;
-    if (fileInfo.first == "armhf") {
+    if (arch == "arm") {
         osList = {
             {"Arch-Linux", "http://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/armhf/alpine-minirootfs-3.19.1-armhf.tar.gz"},
@@ -89,7 +68,7 @@ std::pair<std::string, std::string> install() {
             {"Debian", "https://rcn-ee.net/rootfs/debian-armhf-12-bookworm-minimal-mainline/2024-05-08/am57xx-debian-12.5-minimal-armhf-2024-05-08-2gb.img.xz"},
             {"ParrotOS", "https://raw.githubusercontent.com/EXALAB/AnLinux-Resources/master/Rootfs/Parrot/armhf/parrot-rootfs-armhf.tar.gz"}
         };
-    } else if (fileInfo.first == "arm64") {
+    } else if (arch == "aarch64") {
         osList = {
             {"Arch-Linux", "https://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.0-aarch64.tar.gz"},
@@ -97,7 +76,7 @@ std::pair<std::string, std::string> install() {
             {"Debian", ""},
             {"ParrotOS", ""}
         };
-    } else if (fileInfo.first == "amd64") {
+    } else if (arch == "x86_64") {
         osList = {
             {"Arch-Linux", ""},
             {"Alpine-Linux", ""},
@@ -106,7 +85,7 @@ std::pair<std::string, std::string> install() {
             {"ParrotOS", ""}
         };
     } else {
-        std::cerr << "Arquitectura no compatible: " << fileInfo.first << std::endl;
+        std::cerr << "Arquitectura no compatible: " << arch << std::endl;
         return {};
     }
 
@@ -118,8 +97,8 @@ std::pair<std::string, std::string> install() {
     std::string name = osList[selection].name;
     std::string url = osList[selection].url;
     std::string filename;
-    if (!fileInfo.first.empty()) {
-        filename = name + "-" + fileInfo.first + url.substr(url.find_last_of('.'));
+    if (!arch.empty()) {
+        filename = name + "-" + arch + url.substr(url.find_last_of('.'));
     } else {
         filename = name + url.substr(url.find_last_of('/'));
     }

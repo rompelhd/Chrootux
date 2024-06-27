@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) {
     setenv("LANG", "C", 1);
 
     // ScriptVariables
-    const std::string ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Arch-Linux-armhf";
+    const std::string ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Arch-Linux-arm";
 
     std::vector<MountData> mount_list = {
     {"/dev", ROOTFS_DIR + "/dev", ""},
@@ -251,7 +251,8 @@ int main(int argc, char *argv[]) {
             bool flag = true;
         } else if (std::string(argv[1]) == "-d") {
             checkRoot();
-            archchecker();
+            //archchecker();
+            std::string arch = archchecker();
 
             std::pair<std::string, std::string> installResult = install();
             std::string name = installResult.first;
@@ -262,8 +263,8 @@ int main(int argc, char *argv[]) {
             std::vector<std::string> commands;
             if (name == "Arch-Linux") {
                 shell_path = "/bin/bash";
-                commands = {"rm /etc/resolv.conf", "echo nameserver 8.8.8.8 > /etc/resolv.conf ", "pacman-key --init && pacman-key --populate archlinuxarm 2>/dev/null"};
-                ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Arch-Linux-armhf";
+                commands = {"rm -rf /boot","rm /etc/resolv.conf", "echo nameserver 8.8.8.8 > /etc/resolv.conf", "sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf", "pacman-key --init && pacman-key --populate archlinuxarm 2>/dev/null"};
+                ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Arch-Linux-arm";
             } else if (name == "Kali-Linux") {
                 commands = {"comando_kali_1", "comando_kali_2", "comando_kali_3"};
             } else if (name == "Alpine-Linux") {
@@ -296,8 +297,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    int archResult = archchecker();
-    if (archResult != 0) {
+    std::string archResult = archchecker();
+
+    if (archResult.empty()) {
         std::cerr << "Error al verificar la arquitectura. Saliendo del programa." << std::endl;
         return 1;
     }
