@@ -9,6 +9,97 @@
 #include <iomanip>
 #include <string>
 #include <regex>
+#include <sys/ioctl.h>
+#include <set>
+
+int getTerminalWidth() {
+    winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    return w.ws_col;
+}
+
+void hightable(int totalWidth) {
+    std::string details = "Arch";
+    std::string action = "";
+    std::cout << Colours::blueColour << "╭─" action "[ " << Colours::yellowColour << details << Colours::blueColour << " ] ";
+    for (int i = 26; i < totalWidth - 1; ++i) {
+        std::cout << "─";
+    }
+    std::cout << "╮" << std::endl;
+    std::cout << Colours::blueColour << "│";                                                                                        for (int i = 1; i < totalWidth - 1; ++i) {
+        std::cout << " ";
+    }
+    std::cout << Colours::blueColour << "│" << std::endl;
+}
+
+size_t getRealLength(const std::string& str) {
+    size_t length = 0;
+    bool inEscape = false;
+                                                                                                                                    for (char c : str) {
+        if (c == '\033') {
+            inEscape = true;
+        } else if (inEscape && c == 'm') {
+            inEscape = false;
+        } else if (!inEscape) {
+            length++;
+        }
+    }
+
+    return length;
+}
+
+void intertable(int totalWidth, const std::string& li_content, int terminalWidth) {
+    std::string output = "\033[34m│  [*] \033[33m" + li_content + "\033[0m";
+    size_t realLength = getRealLength(output);
+    size_t spacesNeeded = totalWidth - realLength;
+
+    std::string additionalSpacesFirst;
+    std::string additionalSpacesSecond;
+      if (realLength >= terminalWidth) {
+        size_t lastSpace = output.rfind(' ', terminalWidth);
+
+        std::string firstLine = output.substr(0, lastSpace);                                                                            std::string secondLine = output.substr(lastSpace + 1);
+
+        size_t firstLineLength = getRealLength(firstLine);
+        size_t secondLineLength = getRealLength(secondLine);
+
+        size_t remainingSpacesFirst = totalWidth - firstLineLength + 1;
+        for (size_t i = 0; i < remainingSpacesFirst; ++i) {
+            additionalSpacesFirst += " ";
+        }
+
+        size_t remainingSpacesSecond = totalWidth - secondLineLength - 8;
+        for (size_t i = 0; i < remainingSpacesSecond; ++i) {
+            additionalSpacesSecond += " ";
+        }
+
+        std::cout << firstLine << additionalSpacesFirst << Colours::blueColour << "│" << std::endl;
+        std::cout << Colours::blueColour << "│      " << Colours::yellowColour << secondLine << additionalSpacesSecond << Colours::blueColour << "│" << std::endl;
+
+
+    } else {
+        std::cout << Colours::blueColour << output;
+        for (int i = 0; i < spacesNeeded; ++i) {
+            std::cout << " ";
+        }
+        std::cout << Colours::blueColour << " │";
+    }
+}
+
+void lowtable(int totalWidth) {
+    std::cout << Colours::blueColour << "│";
+    for (int i = 1; i < totalWidth - 1; ++i) {                                                                                          std::cout << " ";
+    }
+    std::cout << "│" << std::endl;
+
+    std::cout << Colours::blueColour << "╰";
+    for (int i = 1; i < totalWidth - 1; ++i) {
+        std::cout << "─";
+    }
+    std::cout << "╯" << std::endl;
+}
+
+
 
 std::string os_name;
 

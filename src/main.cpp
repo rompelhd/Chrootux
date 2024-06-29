@@ -245,7 +245,13 @@ int main(int argc, char *argv[]) {
             usage();
             return 0;
         } else if (std::string(argv[1]) == "-i") {
-            std::cout << "Hola" << std::endl;
+            checkRoot();
+            int terminalWidth = getTerminalWidth();
+ //           hightable(terminalWidth);
+ //           intertable(terminalWidth, "Contenido dentro.", terminalWidth);
+ //           lowtable(terminalWidth);
+            return 0;
+            machinesOn();
             return 0;
         } else if (std::string(argv[1]) == "--debug") {
             bool flag = true;
