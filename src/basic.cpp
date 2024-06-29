@@ -21,7 +21,7 @@ int getTerminalWidth() {
 void hightable(int totalWidth) {
     std::string details = "Arch";
     std::string action = "";
-    std::cout << Colours::blueColour << "╭─" action "[ " << Colours::yellowColour << details << Colours::blueColour << " ] ";
+    std::cout << Colours::blueColour << "╭─" << action << "[ " << Colours::yellowColour << details << Colours::blueColour << " ] ";
     for (int i = 26; i < totalWidth - 1; ++i) {
         std::cout << "─";
     }
