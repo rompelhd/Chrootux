@@ -146,11 +146,6 @@ void mountChrootAndExecute(const std::string& ROOTFS_DIR, const std::vector<Moun
             exit(EXIT_FAILURE);
         }
 
-        if (setenv("DEVPTS_MOUNT", "/dev/pts", 1) != 0) {
-            perror("Error al establecer la variable de entorno");
-            exit(EXIT_FAILURE);
-        }
-
         for (const auto& cmd : commands) {
             pid_t pid = fork();
             if (pid == 0) {
