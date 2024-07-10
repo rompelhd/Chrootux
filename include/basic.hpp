@@ -49,4 +49,8 @@ void getInstalledPackages();
 
 std::string createMachinesFolderIfNotExists(const std::string& home_dir);
 
+extern std::string archost;
+
+std::string archchecker();
+
 #endif /* BASIC_HPP */

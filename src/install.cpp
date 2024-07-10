@@ -1,4 +1,5 @@
 #include "../include/install.hpp"
+#include "../include/basic.hpp"
 #include <iostream>
 #include <fstream>
 #include <chrono>
@@ -33,34 +34,9 @@ int showMenu(const std::vector<OperatingSystem>& osList) {
     return choice - 1;
 }
 
-
-std::string arch;
-
-std::string archchecker() {
-#if defined(_M_X64) || defined(__amd64__)
-    arch = "x86_64";
-#elif defined(_M_IX86) || defined(__i386__)
-    arch = "x86";
-#elif defined(_M_ARM) || defined(__arm__)
-    arch = "arm";
-#elif defined(_M_ARM64) || defined(__aarch64__)
-    arch = "aarch64";
-#elif defined(__linux__)
-    struct utsname buffer;
-    if (uname(&buffer) == 0) {
-        arch = buffer.machine;
-    } else {
-        arch = "unknown";
-    }
-#else
-    arch = "unknown";
-#endif
-    return arch;
-}
-
 std::pair<std::string, std::string> install() {
     std::vector<OperatingSystem> osList;
-    if (arch == "arm") {
+    if (archost == "arm") {
         osList = {
             {"Arch-Linux", "http://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/armhf/alpine-minirootfs-3.19.1-armhf.tar.gz"},
@@ -68,7 +44,7 @@ std::pair<std::string, std::string> install() {
             {"Debian", "https://rcn-ee.net/rootfs/debian-armhf-12-bookworm-minimal-mainline/2024-05-08/am57xx-debian-12.5-minimal-armhf-2024-05-08-2gb.img.xz"},
             {"ParrotOS", "https://raw.githubusercontent.com/EXALAB/AnLinux-Resources/master/Rootfs/Parrot/armhf/parrot-rootfs-armhf.tar.gz"}
         };
-    } else if (arch == "aarch64") {
+    } else if (archost == "aarch64") {
         osList = {
             {"Arch-Linux", "https://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.0-aarch64.tar.gz"},
@@ -76,7 +52,7 @@ std::pair<std::string, std::string> install() {
             {"Debian", ""},
             {"ParrotOS", ""}
         };
-    } else if (arch == "x86_64") {
+    } else if (archost == "x86_64") {
         osList = {
             {"Arch-Linux", ""},
             {"Alpine-Linux", ""},
@@ -85,7 +61,7 @@ std::pair<std::string, std::string> install() {
             {"ParrotOS", ""}
         };
     } else {
-        std::cerr << "Arquitectura no compatible: " << arch << std::endl;
+        std::cerr << "Arquitectura no compatible: " << archost << std::endl;
         return {};
     }
 
@@ -97,8 +73,8 @@ std::pair<std::string, std::string> install() {
     std::string name = osList[selection].name;
     std::string url = osList[selection].url;
     std::string filename;
-    if (!arch.empty()) {
-        filename = name + "-" + arch + url.substr(url.find_last_of('.'));
+    if (!archost.empty()) {
+        filename = name + "-" + archost + url.substr(url.find_last_of('.'));
     } else {
         filename = name + url.substr(url.find_last_of('/'));
     }
@@ -238,4 +214,54 @@ bool downloadFile(const std::string& url, const std::string& filename) {
     std::cout << "Descarga completada.                             " << std::endl;
 
     return true;
+}
+
+void AutoCommands() {
+    std::string arch = archchecker();
+
+    if (arch.empty()) {
+        std::cerr << "Error al verificar la arquitectura. Saliendo del programa." << std::endl;
+        return;
+    }
+
+    std::pair<std::string, std::string> installResult = install();
+    std::string name = installResult.first;
+    std::string outputDir = installResult.second;
+    std::string ROOTFS_DIR = "/data/data/com.termux/files/home/machines/";
+    std::string shell_path = "/bin/bash";
+
+    std::vector<std::string> commands;
+    if (name == "Arch-Linux") {
+        shell_path = "/bin/bash";
+        commands = {
+            "rm -rf /boot", "rm /etc/resolv.conf", "echo nameserver 8.8.8.8 > /etc/resolv.conf", "sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf",
+            "pacman-key --init && pacman-key --populate archlinuxarm 2>/dev/null",
+            R"(read -p 'Creación de usuario - Nombre de usuario: ' username && read -s -p 'Contraseña: ' password && useradd -m -s /bin/bash $username && echo $username:$password | chpasswd && mkdir -p /home/$username && chown $username:$username /home/$username && echo Usuario $username creado exitosamente en /home/$username)"
+        };
+        ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Arch-Linux-arm";
+    } else if (name == "Kali-Linux") {
+        commands = {"comando_kali_1", "comando_kali_2", "comando_kali_3"};
+    } else if (name == "Alpine-Linux") {
+        shell_path = "/bin/ash";
+        commands = {"ls", "cat /etc/hostname", "pwd"};
+        ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Alpine-Linux-armhf";
+    } else {
+        std::cerr << "Distribución no reconocida." << std::endl;
+        std::cout << name << "\n" << outputDir << std::endl;
+        return;
+    }
+
+    std::vector<MountData> mount_list = {
+        {"/dev", ROOTFS_DIR + "/dev", ""},
+        {"/sys", ROOTFS_DIR + "/sys", ""},
+        {"/proc", ROOTFS_DIR + "/proc", ""}
+    };
+
+    std::cout << "\nComandos a ejecutar:\n";
+    for (const auto& cmd : commands) {
+        std::cout << "- " << cmd << "\n";
+    }
+    std::cout << "\n- Shell a usar: " << shell_path << "\n\n";
+
+    mountChrootAndExecute(ROOTFS_DIR, mount_list, commands, shell_path);
 }

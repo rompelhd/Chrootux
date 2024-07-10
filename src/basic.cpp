@@ -21,7 +21,7 @@ int getTerminalWidth() {
 void hightable(int totalWidth) {
     std::string details = "Arch";
     std::string action = "";
-    std::cout << Colours::blueColour << "╭─" action "[ " << Colours::yellowColour << details << Colours::blueColour << " ] ";
+    std::cout << Colours::blueColour << "╭─" << action << "[ " << Colours::yellowColour << details << Colours::blueColour << " ] ";
     for (int i = 26; i < totalWidth - 1; ++i) {
         std::cout << "─";
     }
@@ -232,19 +232,80 @@ long long getDirectorySize(const std::string& path) {
     return size;
 }
 
+std::string archost;
+
+std::string archchecker() {
+#if defined(_M_X64) || defined(__amd64__)
+    archost = "x86_64";
+#elif defined(_M_IX86) || defined(__i386__)
+    archost = "x86";
+#elif defined(_M_ARM) || defined(__arm__)
+    archost = "arm";
+#elif defined(_M_ARM64) || defined(__aarch64__)
+    archost = "arm64";
+#elif defined(__linux__)
+    struct utsname buffer;
+    if (uname(&buffer) == 0) {
+        archost = buffer.machine;
+    } else {
+        archost = "unknown";
+    }
+#else
+    archost = "unknown";
+#endif
+    return archost;
+}
+
+
+std::string archoutinfo(const std::string& bin_path) {
+    std::vector<std::string> binaries = {"bash", "busybox", "apt", "sh", "ls"};
+    std::string arch = "unknown";
+
+    for (const auto& binary : binaries) {
+        std::string command = "file " + bin_path + "/" + binary;
+        char buffer[128];
+        std::string result;
+        std::shared_ptr<FILE> pipe(popen(command.c_str(), "r"), pclose);
+        if (!pipe) throw std::runtime_error("popen() failed!");
+
+        while (fgets(buffer, sizeof(buffer), pipe.get()) != nullptr) {
+            result += buffer;
+        }
+
+        std::size_t lsb_pos = result.find("LSB");
+        if (lsb_pos != std::string::npos) {
+            std::size_t start = result.find(" ", lsb_pos) + 1;
+            std::size_t end = result.find(",", start);
+            if (start != std::string::npos && end != std::string::npos) {
+                arch = result.substr(start, end - start);
+            }
+        }
+    }
+
+    std::vector<std::string> known_architectures = {"arm", "arm64", "x86", "x86_64"};
+    if (std::find(known_architectures.begin(), known_architectures.end(), arch) == known_architectures.end()) {
+        arch = "unknown";
+    }
+
+    return arch;
+}
+
 void machinesOn() {
     std::vector<std::string> directories = getDirectories(machines_folder);
 
-    std::cout << "OS Name" << std::setw(30) << std::setw(15) << "Size" << std::setw(15) << "Path" << std::endl;
-    std::cout << std::string(60, '-') << std::endl;
+    std::cout << "OS Name" << std::setw(30) << std::setw(15) << "Size" << std::setw(15) << "Path" << std::setw(30) << "Arch" << std::endl;
+    std::cout << std::string(75, '-') << std::endl;
 
     for (const std::string& dir : directories) {
         std::filesystem::path fullPath(dir);
         std::string truncatedPath = fullPath.lexically_relative("/data/data/com.termux/files/").string();
 
         std::filesystem::path etc_path = std::filesystem::path(dir) / "etc";
+        std::filesystem::path bin_path = std::filesystem::path(dir) / "bin";
+
         std::string os_name = "N/A";
         std::string size = "N/A";
+        std::string arch = "N/A";
 
         if (exists(etc_path)) {
             std::filesystem::path os_release_path = etc_path / "os-release";
@@ -265,10 +326,11 @@ void machinesOn() {
         }
 
         size = formatSize(getDirectorySize(dir));
+        arch = archoutinfo(bin_path);
 
         std::cout << Colours::greenColour << std::left << std::setw(18) << os_name
                   << Colours::redColour << std::setw(15) << size
-                  << std::setw(30) << truncatedPath << Colours::endColour << std::endl;
+                  << std::setw(30) << truncatedPath << arch << Colours::endColour << std::endl;
     }
     std::cout << "\n" << std::endl;
 }

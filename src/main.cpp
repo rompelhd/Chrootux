@@ -5,7 +5,14 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <vector>
+#include <sys/stat.h>
+#include <fstream>
 #include <sys/mount.h>
+#include <random>
+#include <chrono>
+#include <algorithm>
+#include <string>
+#include <thread>
 #include "../include/basic.hpp"
 #include "../include/install.hpp"
 
@@ -91,6 +98,34 @@ void unmountFileSystem(const std::string& target) {
     }
 }
 
+std::string generateRandomVariation() {
+    std::vector<std::string> variations = {
+        "[ Chr@oting ... ]",
+        "[ C$root@ng ... ]",
+        "[ Chr$otin@ ... ]",
+        "[ $h%ooti$g ... ]"
+    };
+
+    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::shuffle(variations.begin(), variations.end(), std::default_random_engine(seed));
+
+    return variations[0];
+}
+
+void ChrootingTime() {
+    for (int i = 0; i < 10; ++i) {
+        std::string variation = generateRandomVariation();
+
+        std::cout << variation << std::flush;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+        std::cout << '\r';
+    }
+
+    std::cout << std::endl;
+}
+
 void mountChrootAndExecute(const std::string& ROOTFS_DIR, const std::vector<MountData>& mount_list, const std::vector<std::string>& commands, const std::string& shell_path) {
     pid_t pid = fork();
 
@@ -162,7 +197,6 @@ void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<Mount
     }
 
     if (pid == 0) {
-        std::cout << "\n" << "[ Chrooting ... ]\n" << std::endl;
 
         if (chroot(ROOTFS_DIR.c_str()) != 0) {
             perror("Error al hacer chroot");
@@ -174,23 +208,61 @@ void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<Mount
             exit(EXIT_FAILURE);
         }
 
-        if (setenv("DEVPTS_MOUNT", "/dev/pts", 1) != 0) {
-            perror("Error al establecer la variable de entorno");
+        std::string dbus_dir = "/run/dbus";
+        if (mkdir(dbus_dir.c_str(), 0755) != 0 && errno != EEXIST) {
+            perror("Error al crear el directorio /run/dbus");
             exit(EXIT_FAILURE);
         }
 
-        if (execl("/bin/bash", "bash", NULL) == -1) {
-            perror("Error al ejecutar el shell interactivo de bash");
+        pid_t dbus_pid = fork();
+        if (dbus_pid == 0) {
+            int dev_null = open("/dev/null", O_WRONLY);
+            if (dev_null == -1) {
+                perror("Error al abrir /dev/null");
+                exit(EXIT_FAILURE);
+            }
+            dup2(dev_null, STDOUT_FILENO);
+            close(dev_null);
+
+            if (execl("/usr/bin/dbus-daemon", "dbus-daemon", "--system", "--nofork", "--nopidfile", (char *)NULL) == -1) {
+                perror("Error al ejecutar dbus-daemon");
+                exit(EXIT_FAILURE);
+            }
+        } else if (dbus_pid > 0) {
+            std::cout << "\n";
+            ChrootingTime();
+            std::cout << "\n";
+
+            pid_t bash_pid = fork();
+            if (bash_pid == 0) {
+                if (execl("/bin/bash", "bash", (char *)NULL) == -1) {
+                    perror("Error al ejecutar el shell interactivo de bash");
+                    exit(EXIT_FAILURE);
+                }
+            } else if (bash_pid > 0) {
+                int bash_status;
+                waitpid(bash_pid, &bash_status, 0);
+            } else {
+                perror("Error al crear el proceso hijo para bash");
+                exit(EXIT_FAILURE);
+            }
+
+            if (kill(dbus_pid, SIGTERM) == -1) {
+                perror("Error al terminar dbus-daemon");
+                exit(EXIT_FAILURE);
+            }
+        } else {
+            perror("Error al crear el proceso hijo para dbus-daemon");
             exit(EXIT_FAILURE);
         }
-
     } else {
         int status;
         waitpid(pid, &status, 0);
-        std::cout << "\n" << std::endl;
+        std::cout << "\n";
 
         for (const auto& entry : mount_list) {
             unmountFileSystem(entry.target);
+
         }
     }
 }
@@ -220,6 +292,7 @@ int main(int argc, char *argv[]) {
     setenv("HOME", "/root", 1);
     setenv("SHELL", "/bin/bash", 1);
     setenv("TERM", "xterm", 1);
+    setenv("DEVPTS_MOUNT", "/dev/pts", 1);
     setenv("TZ", "Europe/Madrid", 1);
     setenv("LANGUAGE", "C", 1);
     setenv("LANG", "C", 1);
@@ -250,55 +323,13 @@ int main(int argc, char *argv[]) {
  //           hightable(terminalWidth);
  //           intertable(terminalWidth, "Contenido dentro.", terminalWidth);
  //           lowtable(terminalWidth);
-            return 0;
             machinesOn();
             return 0;
         } else if (std::string(argv[1]) == "--debug") {
             bool flag = true;
         } else if (std::string(argv[1]) == "-d") {
             checkRoot();
-            //archchecker();
-            std::string arch = archchecker();
-
-            std::pair<std::string, std::string> installResult = install();
-            std::string name = installResult.first;
-            std::string outputDir = installResult.second;
-            std::string ROOTFS_DIR = "/data/data/com.termux/files/home/machines/";
-            std::string shell_path = "/bin/bash";
-
-            std::vector<std::string> commands;
-            if (name == "Arch-Linux") {
-                shell_path = "/bin/bash";
-                commands = {"rm -rf /boot","rm /etc/resolv.conf", "echo nameserver 8.8.8.8 > /etc/resolv.conf", "sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf", "pacman-key --init && pacman-key --populate archlinuxarm 2>/dev/null"};
-                ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Arch-Linux-arm";
-            } else if (name == "Kali-Linux") {
-                commands = {"comando_kali_1", "comando_kali_2", "comando_kali_3"};
-            } else if (name == "Alpine-Linux") {
-                shell_path = "/bin/ash";
-                commands = {"ls", "cat /etc/hostname", "pwd"};
-                ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Alpine-Linux-armhf";
-            } else {
-                std::cerr << "Distribución no reconocida." << std::endl;
-                std::cout << name << "\n" << outputDir << std::endl;
-                return 1;
-            }
-
-            std::vector<MountData> mount_list = {
-            {"/dev", ROOTFS_DIR + "/dev", ""},
-            {"/sys", ROOTFS_DIR + "/sys", ""},
-            {"/proc", ROOTFS_DIR + "/proc", ""},
-            };
-
-            mounting(mount_list);
-
-            std::cout << "\nComandos a ejecutar:\n";
-            for (const auto& cmd : commands) {
-                std::cout << "- " << cmd << "\n";
-            }
-            std::cout << "\n- Shell a usar: " << shell_path << "\n\n";
-
-            mountChrootAndExecute(ROOTFS_DIR, mount_list, commands, shell_path);
-
+            AutoCommands();
             return 0;
         }
     }
