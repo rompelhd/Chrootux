@@ -258,30 +258,25 @@ std::string archchecker() {
 }
 
 
-// Estructura para almacenar la información del encabezado ELF
 struct ElfHeader {
-    uint8_t ident[16];  // Identificación ELF
-    uint16_t type;      // Tipo de archivo
-    uint16_t machine;   // Arquitectura
+    uint8_t ident[16];
+    uint16_t type;
+    uint16_t machine;
 };
 
-// Función para leer y analizar el encabezado ELF
 bool readElfHeader(const std::string& filename, ElfHeader& header) {
     std::ifstream file(filename, std::ios::binary);
     if (!file) {
         return false;
     }
 
-    // Leer la identificación ELF
     file.read(reinterpret_cast<char*>(&header.ident), sizeof(header.ident));
 
-    // Verificar si es un archivo ELF válido
     if (header.ident[0] != 0x7F || header.ident[1] != 'E' || header.ident[2] != 'L' || header.ident[3] != 'F') {
         std::cerr << "Error: No es un archivo ELF válido: " << filename << std::endl;
         return false;
     }
 
-    // Leer el tipo de archivo y la máquina
     file.seekg(0x10);
     file.read(reinterpret_cast<char*>(&header.type), sizeof(header.type));
     file.read(reinterpret_cast<char*>(&header.machine), sizeof(header.machine));
@@ -290,7 +285,6 @@ bool readElfHeader(const std::string& filename, ElfHeader& header) {
     return true;
 }
 
-// Función para determinar la arquitectura a partir del encabezado ELF
 std::string archoutinfo(const std::string& bin_path) {
     std::vector<std::string> binaries = {"bash", "busybox", "apt", "sh", "ls"};
     std::string arch = "unknown";
@@ -301,23 +295,23 @@ std::string archoutinfo(const std::string& bin_path) {
         ElfHeader header;
         if (readElfHeader(full_path, header)) {
             switch (header.machine) {
-                case 0x28:  // EM_ARM
+                case 0x28:
                     arch = "arm";
                     break;
-                case 0x3:   // EM_386
+                case 0x3:
                     arch = "x86";
                     break;
-                case 0x3E:  // EM_X86_64
+                case 0x3E:
                     arch = "x86_64";
                     break;
-                case 0xB7:  // EM_AARCH64
+                case 0xB7:
                     arch = "arm64";
                     break;
                 default:
                     arch = "unknown";
                     break;
             }
-            break; // Salir del bucle al encontrar la arquitectura
+            break;
         }
     }
 
