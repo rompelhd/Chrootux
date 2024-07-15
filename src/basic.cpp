@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <string>
 #include <regex>
+#include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <set>
 
@@ -257,38 +258,72 @@ std::string archchecker() {
 }
 
 
+// Estructura para almacenar la información del encabezado ELF
+struct ElfHeader {
+    uint8_t ident[16];  // Identificación ELF
+    uint16_t type;      // Tipo de archivo
+    uint16_t machine;   // Arquitectura
+};
+
+// Función para leer y analizar el encabezado ELF
+bool readElfHeader(const std::string& filename, ElfHeader& header) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file) {
+        return false;
+    }
+
+    // Leer la identificación ELF
+    file.read(reinterpret_cast<char*>(&header.ident), sizeof(header.ident));
+
+    // Verificar si es un archivo ELF válido
+    if (header.ident[0] != 0x7F || header.ident[1] != 'E' || header.ident[2] != 'L' || header.ident[3] != 'F') {
+        std::cerr << "Error: No es un archivo ELF válido: " << filename << std::endl;
+        return false;
+    }
+
+    // Leer el tipo de archivo y la máquina
+    file.seekg(0x10);
+    file.read(reinterpret_cast<char*>(&header.type), sizeof(header.type));
+    file.read(reinterpret_cast<char*>(&header.machine), sizeof(header.machine));
+
+    file.close();
+    return true;
+}
+
+// Función para determinar la arquitectura a partir del encabezado ELF
 std::string archoutinfo(const std::string& bin_path) {
     std::vector<std::string> binaries = {"bash", "busybox", "apt", "sh", "ls"};
     std::string arch = "unknown";
 
     for (const auto& binary : binaries) {
-        std::string command = "file " + bin_path + "/" + binary;
-        char buffer[128];
-        std::string result;
-        std::shared_ptr<FILE> pipe(popen(command.c_str(), "r"), pclose);
-        if (!pipe) throw std::runtime_error("popen() failed!");
+        std::string full_path = bin_path + "/" + binary;
 
-        while (fgets(buffer, sizeof(buffer), pipe.get()) != nullptr) {
-            result += buffer;
-        }
-
-        std::size_t lsb_pos = result.find("LSB");
-        if (lsb_pos != std::string::npos) {
-            std::size_t start = result.find(" ", lsb_pos) + 1;
-            std::size_t end = result.find(",", start);
-            if (start != std::string::npos && end != std::string::npos) {
-                arch = result.substr(start, end - start);
+        ElfHeader header;
+        if (readElfHeader(full_path, header)) {
+            switch (header.machine) {
+                case 0x28:  // EM_ARM
+                    arch = "arm";
+                    break;
+                case 0x3:   // EM_386
+                    arch = "x86";
+                    break;
+                case 0x3E:  // EM_X86_64
+                    arch = "x86_64";
+                    break;
+                case 0xB7:  // EM_AARCH64
+                    arch = "arm64";
+                    break;
+                default:
+                    arch = "unknown";
+                    break;
             }
+            break; // Salir del bucle al encontrar la arquitectura
         }
-    }
-
-    std::vector<std::string> known_architectures = {"arm", "arm64", "x86", "x86_64"};
-    if (std::find(known_architectures.begin(), known_architectures.end(), arch) == known_architectures.end()) {
-        arch = "unknown";
     }
 
     return arch;
 }
+
 
 void machinesOn() {
     std::vector<std::string> directories = getDirectories(machines_folder);
@@ -313,7 +348,7 @@ void machinesOn() {
                 try {
                     os_name = getNameField(os_release_path.string());
                     if (os_name.empty()) {
-                        os_name = "NAME field not found";
+                        os_name = "NAME not found";
                     }
                 } catch (const std::exception& e) {
                     os_name = "Error reading file";
