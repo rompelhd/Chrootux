@@ -49,7 +49,7 @@ std::pair<std::string, std::string> install() {
             {"Arch-Linux", "https://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.0-aarch64.tar.gz"},
             {"Kali-Linux-Minimal", ""},
-            {"Debian", ""},
+            {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-aarch64-pd-v4.7.0.tar.xz"},
             {"ParrotOS", ""}
         };
     } else if (archost == "x86_64") {
@@ -98,10 +98,25 @@ std::pair<std::string, std::string> install() {
     return {name, filename};
 }
 
+namespace fs = std::filesystem;
+
+bool containsLinuxStandardDirs(const fs::path& dir) {
+    return fs::exists(dir / "bin") && fs::exists(dir / "etc") && fs::exists(dir / "usr");
+}
+
+fs::path findLinuxRoot(const fs::path& dir) {
+    for (const auto& entry : fs::recursive_directory_iterator(dir)) {
+        if (fs::is_directory(entry) && containsLinuxStandardDirs(entry)) {
+            return entry;
+        }
+    }
+    return "";
+}
+
 bool extractArchive(const std::string& filename, const std::string& outputDirectory) {
     std::string baseFilename = filename.substr(0, filename.find_first_of("."));
-
     std::string outputDir = outputDirectory + "/" + baseFilename;
+
     mkdir(outputDir.c_str(), 0755);
 
     struct archive* a = archive_read_new();
@@ -112,7 +127,10 @@ bool extractArchive(const std::string& filename, const std::string& outputDirect
 
     archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME);
 
-    archive_read_open_filename(a, filename.c_str(), 10240);
+    if (archive_read_open_filename(a, filename.c_str(), 10240) != ARCHIVE_OK) {
+        std::cerr << "Error opening archive." << std::endl;
+        return false;
+    }
 
     int r;
     struct archive_entry* entry;
@@ -120,7 +138,7 @@ bool extractArchive(const std::string& filename, const std::string& outputDirect
         const char* entry_pathname = archive_entry_pathname(entry);
         std::string output_path = outputDir + "/" + entry_pathname;
 
-        std::cout << output_path << std::endl;
+        std::cout << "Extracting: " << output_path << std::endl;
 
         archive_entry_set_pathname(entry, output_path.c_str());
         archive_write_header(ext, entry);
@@ -140,6 +158,18 @@ bool extractArchive(const std::string& filename, const std::string& outputDirect
     archive_read_free(a);
     archive_write_close(ext);
     archive_write_free(ext);
+
+    if (!containsLinuxStandardDirs(outputDir)) {
+        fs::path linuxRoot = findLinuxRoot(outputDir);
+        if (!linuxRoot.empty()) {
+            for (const auto& entry : fs::directory_iterator(linuxRoot)) {
+                fs::rename(entry.path(), outputDir + "/" + entry.path().filename().string());
+            }
+            fs::remove_all(linuxRoot);
+        } else {
+            std::cerr << "No Linux root directory found in the extracted files." << std::endl;
+        }
+    }
 
     std::string input;
     std::cout << "¿Desea eliminar el archivo comprimido '" << filename << "'? (yes/no): ";
@@ -194,6 +224,9 @@ bool downloadFile(const std::string& url, const std::string& filename) {
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
 
     ProgressData progressData = {0.0, 0.0, 0.0};
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progressCallback);
@@ -211,8 +244,21 @@ bool downloadFile(const std::string& url, const std::string& filename) {
     fclose(fp);
     curl_easy_cleanup(curl);
 
-    std::cout << "Descarga completada.                             " << std::endl;
+    fp = fopen(filename.c_str(), "rb");
+    if (!fp) {
+        std::cerr << "Error al abrir el archivo para verificación." << std::endl;
+        return false;
+    }
+    fseek(fp, 0, SEEK_END);
+    long fileSize = ftell(fp);
+    fclose(fp);
 
+    if (fileSize == 0) {
+        std::cerr << "El archivo descargado está vacío." << std::endl;
+        return false;
+    }
+
+    std::cout << "Descarga completada." << std::endl;
     return true;
 }
 
@@ -239,6 +285,10 @@ void AutoCommands() {
             R"(read -p 'Creación de usuario - Nombre de usuario: ' username && read -s -p 'Contraseña: ' password && useradd -m -s /bin/bash $username && echo $username:$password | chpasswd && mkdir -p /home/$username && chown $username:$username /home/$username && echo Usuario $username creado exitosamente en /home/$username)"
         };
         ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Arch-Linux-arm";
+    } else if (name == "Debian") {
+        shell_path = "/bin/bash";
+        commands = {"chmod 1777 /tmp", "echo nameserver 8.8.8.8 > /etc/resolv.conf"};
+        ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Debian-aarch64";
     } else if (name == "Kali-Linux") {
         commands = {"comando_kali_1", "comando_kali_2", "comando_kali_3"};
     } else if (name == "Alpine-Linux") {

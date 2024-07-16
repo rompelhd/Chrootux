@@ -220,7 +220,7 @@ void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<Mount
             close(dev_null);
 
             if (execl("/usr/bin/dbus-daemon", "dbus-daemon", "--system", "--nofork", "--nopidfile", (char *)NULL) == -1) {
-                perror("Error al ejecutar dbus-daemon");
+              //  perror("Error al ejecutar dbus-daemon");
                 exit(EXIT_FAILURE);
             }
         } else if (dbus_pid > 0) {
@@ -230,7 +230,7 @@ void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<Mount
 
             pid_t bash_pid = fork();
             if (bash_pid == 0) {
-                if (execl("/bin/ash", "ash", (char *)NULL) == -1) {
+                if (execl("/bin/bash", "bash", (char *)NULL) == -1) {
                     perror("Error al ejecutar el shell interactivo de bash");
                     exit(EXIT_FAILURE);
                 }
@@ -285,7 +285,7 @@ int main(int argc, char *argv[]) {
     setenv("LD_LIBRARY_PATH", "/lib:/usr/lib", 1);
     setenv("USER", "root", 1);
     setenv("HOME", "/root", 1);
-    setenv("SHELL", "/bin/ash", 1);
+    setenv("SHELL", "/bin/bash", 1);
     setenv("TERM", "xterm", 1);
     setenv("DEVPTS_MOUNT", "/dev/pts", 1);
     setenv("TZ", "Europe/Madrid", 1);
@@ -293,7 +293,7 @@ int main(int argc, char *argv[]) {
     setenv("LANG", "C", 1);
 
     // ScriptVariables
-    const std::string ROOTFS_DIR = "/data/data/com.termux/files/home/machines/alpine";
+    const std::string ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Debian-aarch64";
 
     std::vector<MountData> mount_list = {
     {"/dev", ROOTFS_DIR + "/dev", ""},

@@ -247,7 +247,7 @@ std::string archchecker() {
 #elif defined(_M_ARM) || defined(__arm__)
     archost = "arm";
 #elif defined(_M_ARM64) || defined(__aarch64__)
-    archost = "arm64";
+    archost = "aarch64";
 #elif defined(__linux__)
     struct utsname buffer;
     if (uname(&buffer) == 0) {
@@ -326,8 +326,8 @@ std::string archoutinfo(const std::string& bin_path) {
 void machinesOn() {
     std::vector<std::string> directories = getDirectories(machines_folder);
 
-    std::cout << "OS Name" << std::setw(30) << std::setw(15) << "Size" << std::setw(15) << "Path" << std::setw(30) << "Arch" << std::endl;
-    std::cout << std::string(75, '-') << std::endl;
+    std::cout << "OS Name" << std::setw(30) << std::setw(15) << "Size" << std::setw(15) << "Path" << std::setw(30) << "Arch" << std::setw(15) << "Emulation" << std::endl;
+    std::cout << std::string(85, '-') << std::endl;
 
     for (const std::string& dir : directories) {
         std::filesystem::path fullPath(dir);
