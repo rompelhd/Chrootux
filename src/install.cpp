@@ -41,7 +41,7 @@ std::pair<std::string, std::string> install() {
             {"Arch-Linux", "http://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/armhf/alpine-minirootfs-3.19.1-armhf.tar.gz"},
             {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kalifs-armhf-minimal.tar.xz"},
-            {"Debian", "https://rcn-ee.net/rootfs/debian-armhf-12-bookworm-minimal-mainline/2024-05-08/am57xx-debian-12.5-minimal-armhf-2024-05-08-2gb.img.xz"},
+            {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-arm-pd-v4.7.0.tar.xz"},
             {"ParrotOS", "https://raw.githubusercontent.com/EXALAB/AnLinux-Resources/master/Rootfs/Parrot/armhf/parrot-rootfs-armhf.tar.gz"}
         };
     } else if (archost == "aarch64") {
