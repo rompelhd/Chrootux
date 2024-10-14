@@ -13,8 +13,13 @@
 #include <algorithm>
 #include <string>
 #include <thread>
+#include <dirent.h>
+#include <filesystem>
+#include <unordered_set>
 #include "../include/basic.hpp"
 #include "../include/install.hpp"
+
+namespace fs = std::filesystem;
 
 struct Phrase {
     std::string part1;
@@ -59,7 +64,7 @@ void usage() {
 
 void checkRoot() {
     if (geteuid() != 0) {
-        std::cout << "\n" << Colours::redColour << "[*] No eres fucking root" << Colours::endColour << std::endl;
+        std::cout << "\n" << Colours::redColour << "[*] You're not a fucking root" << Colours::endColour << std::endl;
         exit(0);
     }
 }
@@ -69,11 +74,76 @@ bool isMounted(const std::string& path) {
     return statvfs(path.c_str(), &fsInfo) == 0;
 }
 
+unsigned long long getFilesystemID(const std::string& path) {
+    struct statvfs fsInfo;
+    if (statvfs(path.c_str(), &fsInfo) != 0) {
+        perror("statvfs failed");
+        return 0;
+    }
+    return fsInfo.f_fsid;
+}
+
+
+std::string extractDirectoryBefore(const std::string& path, const std::vector<std::string>& targets) {
+    for (const auto& target : targets) {
+        size_t pos = path.find(target);
+        if (pos != std::string::npos) {
+            size_t lastSlash = path.rfind('/', pos - 1);
+            if (lastSlash != std::string::npos) {
+                return path.substr(lastSlash + 1, pos - lastSlash - 1);
+            }
+        }
+    }
+    return "";
+}
+
+
+bool checkTargetsMounted(const std::string& base_path, const std::string& dir) {
+    std::ifstream mounts("/proc/mounts");
+    std::string line;
+    std::unordered_set<std::string> targets_found;
+
+    std::vector<std::string> targets = {"/proc", "/dev", "/sys"};
+
+    while (std::getline(mounts, line)) {
+        if (line.find(base_path + "/" + dir) != std::string::npos) {
+            for (const auto& target : targets) {
+                if (line.find(target) != std::string::npos) {
+                    targets_found.insert(target);
+                }
+            }
+        }
+    }
+
+    return targets_found.size() == 3;
+}
+
+void checkMounts(const std::string& base_path) {
+    std::ifstream mounts("/proc/mounts");
+    std::string line;
+    std::vector<std::string> targets = {"/proc", "/dev", "/sys"};
+    std::unordered_set<std::string> checked_dirs;
+
+    while (std::getline(mounts, line)) {
+        if (line.find(base_path) != std::string::npos) {
+            std::string mount_point = line.substr(line.find(base_path));
+            std::string dir = extractDirectoryBefore(mount_point, targets);
+
+            if (!dir.empty() && checked_dirs.find(dir) == checked_dirs.end()) {
+                if (checkTargetsMounted(base_path, dir)) {
+                    std::cout << "It was already mounted /proc /dev /sys towards: " << dir << "\n" << std::endl;
+                }
+                checked_dirs.insert(dir);
+            }
+        }
+    }
+}
+
 void mountFileSystem(const std::string& source, const std::string& target, const std::string& fs_type) {
     int flags = MS_BIND | MS_REC;
 
     if (mount(source.c_str(), target.c_str(), fs_type.c_str(), flags, nullptr) != 0) {
-        std::cerr << "Error al montar el sistema de archivos: " << strerror(errno) << std::endl;
+        std::cerr << "Error mounting the file system: " << strerror(errno) << std::endl;
         exit(EXIT_FAILURE);
     }
 }
@@ -92,7 +162,7 @@ void mounting(const std::vector<MountData>& mount_list) {
 
 void unmountFileSystem(const std::string& target) {
     if (umount2(target.c_str(), MNT_DETACH) != 0) {
-        std::cerr << "Error al desmontar el sistema de archivos: " << strerror(errno) << std::endl;
+        std::cerr << "Error unmounting the file system: " << strerror(errno) << std::endl;
     } else {
         std::cout << "[" << Colours::greenColour << "✔" << Colours::endColour << "] Unmounted: " << target << std::endl;
     }
@@ -262,6 +332,37 @@ void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<Mount
     }
 }
 
+std::string select_rootfs_dir(const std::string& machines_folder) {
+    std::vector<std::string> directories;
+
+    for (const auto& entry : fs::directory_iterator(machines_folder)) {
+        if (entry.is_directory()) {
+            directories.push_back(entry.path().string());
+        }
+    }
+
+    if (directories.size() == 1) {
+        return directories[0];
+    }
+
+    if (directories.size() > 1) {
+        for (size_t i = 0; i < directories.size(); ++i) {
+            std::cout << i + 1 << ") " << directories[i] << std::endl;
+        }
+
+        int choice;
+        do {
+            std::cout << "\nNo system selected, which system do you want to start?: ";
+            std::cin >> choice;
+        } while (choice < 1 || choice > static_cast<int>(directories.size()));
+
+        return directories[choice - 1];
+    }
+
+    std::cerr << "No system was found on machines." << std::endl;
+    return "";
+}
+
 int main(int argc, char *argv[]) {
     system("clear");
 
@@ -292,21 +393,31 @@ int main(int argc, char *argv[]) {
     setenv("LANGUAGE", "C", 1);
     setenv("LANG", "C", 1);
 
-    // ScriptVariables
-    const std::string ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Debian-aarch64";
+    const char* home_dir = std::getenv("HOME");
+    if (home_dir != nullptr) {
+        std::string machines_folder = createMachinesFolderIfNotExists(home_dir);
+        if (machines_folder.empty()) {
+            std::cerr << "Error: creating or getting the 'machines' folder." << std::endl;
+            return 1;
+        }
 
+        unsigned long long rootFsid = getFilesystemID(machines_folder);
+        if (rootFsid != 0) {
+            checkMounts(machines_folder);
+        } else {
+            std::cerr << "It was not possible to obtain information on the assemblies for " << machines_folder << std::endl;
+        }
+    } else {
+        std::cerr << "The location of the home folder could not be obtained." << std::endl;
+    }
+
+    std::string ROOTFS_DIR = select_rootfs_dir(machines_folder);
     std::vector<MountData> mount_list = {
     {"/dev", ROOTFS_DIR + "/dev", ""},
     {"/sys", ROOTFS_DIR + "/sys", ""},
     {"/proc", ROOTFS_DIR + "/proc", ""},
+    //{"/sys/class/thermal", ROOTFS_DIR + "/sys/class/thermal", ""},
     };
-
-    const char* home_dir = std::getenv("HOME");
-    if (home_dir != nullptr) {
-        std::string machines_folder = createMachinesFolderIfNotExists(home_dir);
-    } else {
-        std::cerr << "No se pudo obtener la ubicación de la carpeta home." << std::endl;
-    }
 
     if (argc > 1) {
         if (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help") {
@@ -322,18 +433,48 @@ int main(int argc, char *argv[]) {
             return 0;
         } else if (std::string(argv[1]) == "--debug") {
             bool flag = true;
+        } else if (std::string(argv[1]) == "-k" || std::string(argv[1]) == "--kill") {
+            std::cout << "New function to kill chroot sessions and unmount systems, this way we can shutdown the systems" << std::endl;
         } else if (std::string(argv[1]) == "-d") {
+            std::string arch = archchecker();
+            if (arch.empty()) {
+                std::cerr << "Error: verifying the architecture. Exiting." << std::endl;
+                return 1;
+            }
             checkRoot();
-            AutoCommands();
+
+            auto installResult = install(arch);
+
+            if (installResult.name.empty() || installResult.url.empty()) {
+                std::cerr << "Error: 'name' or 'url' are empty. Exiting." << std::endl;
+                return 1;
+            }
+
+            std::string name = installResult.name;
+            std::string url = installResult.url;
+            std::string filename = installResult.filename;
+
+            bool success = downloadFile(url, filename);
+
+            std::string outputDirectory = "/data/data/com.termux/files/home/machines";
+
+            if (success) {
+                std::cout << "The Rootfs was downloaded: " << filename << std::endl;
+                auto extractResult = extractArchive(filename, outputDirectory);
+                success = extractResult.second;  // bool
+                std::string outputDir = extractResult.first; // Rootfsdir
+                if (success) {
+                    std::cout << "The Rootfs was extracted correctly." << std::endl;
+                    std::string ROOTFS_DIR = outputDir;
+                    AutoCommands(name, outputDir);
+                } else {
+                    std::cerr << "Error when extracting Rootfs." << std::endl;
+                }
+            } else {
+                std::cerr << "Error downloading Rootfs." << std::endl;
+            }
             return 0;
         }
-    }
-
-    std::string archResult = archchecker();
-
-    if (archResult.empty()) {
-        std::cerr << "Error al verificar la arquitectura. Saliendo del programa." << std::endl;
-        return 1;
     }
 
     mounting(mount_list);
