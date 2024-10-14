@@ -22,13 +22,13 @@ int getTerminalWidth() {
 void hightable(int totalWidth) {
     std::string details = "Arch";
     std::string action = "";
-    
+
     std::cout << Colours::blueColour << "╭─" << action << "[ " << Colours::yellowColour << details << Colours::blueColour << " ] ";
     for (int i = 26; i < totalWidth - 1; ++i) {
         std::cout << "─";
     }
     std::cout << "╮" << std::endl;
-    
+
     std::cout << Colours::blueColour << "│";
     for (int i = 1; i < totalWidth - 1; ++i) {
         std::cout << " ";
@@ -215,7 +215,7 @@ std::string getNameField(const std::string& filepath) {
 }
 
 std::string formatSize(long long size) {
-    const char *sizes[] = {"B", "KB", "MB", "GB"};
+    const char* sizes[] = {"B", "KB", "MB", "GB"};
     int i = 0;
     double bytes = size;
     while (bytes >= 1024 && i < (sizeof(sizes) / sizeof(sizes[0])) - 1) {
@@ -322,6 +322,23 @@ std::string archoutinfo(const std::string& bin_path) {
     return arch;
 }
 
+const char* check_emulation(const char* arch, const char* archost) {
+    if ((strcmp(arch, "arm") == 0 && strcmp(archost, "arm64") == 0) ||
+        (strcmp(arch, "x86") == 0 && strcmp(archost, "x86_64") == 0)) {
+        return "Native";
+    } else if ((strcmp(arch, "arm64") == 0 && strcmp(archost, "arm") == 0) ||
+               (strcmp(arch, "x86_64") == 0 && strcmp(archost, "x86") == 0) ||
+               (strcmp(arch, "arm64") == 0 && strcmp(archost, "x86") == 0) ||
+               (strcmp(arch, "x86_64") == 0 && strcmp(archost, "arm") == 0) ||
+               (strcmp(arch, "arm") == 0 && strcmp(archost, "x86_64") == 0) ||
+               (strcmp(arch, "x86") == 0 && strcmp(archost, "arm64") == 0)) {
+        return "Needed";
+    } else if (strcmp(arch, archost) == 0) {
+        return "No";
+    } else {
+        return "Unknown";
+    }
+}
 
 void machinesOn() {
     std::vector<std::string> directories = getDirectories(machines_folder);
@@ -360,10 +377,13 @@ void machinesOn() {
 
         size = formatSize(getDirectorySize(dir));
         arch = archoutinfo(bin_path);
+        std::string archost = archchecker();
+        const char* emulation = check_emulation(arch.c_str(), archost.c_str());
 
         std::cout << Colours::greenColour << std::left << std::setw(18) << os_name
                   << Colours::redColour << std::setw(15) << size
-                  << std::setw(30) << truncatedPath << arch << Colours::endColour << std::endl;
+                  << std::setw(30) << truncatedPath << arch << Colours::endColour
+                  << std::setw(30) << emulation << std::endl;
     }
     std::cout << "\n" << std::endl;
 }
