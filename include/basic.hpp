@@ -21,7 +21,6 @@ struct MountData {
     std::string fs_type;
 };
 
-
 int getTerminalWidth();
 
 void hightable(int totalWidth);
