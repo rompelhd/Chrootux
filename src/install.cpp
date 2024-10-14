@@ -10,11 +10,6 @@
 
 std::pair<std::string, std::string> fileInfo;
 
-struct OperatingSystem {
-    std::string name;
-    std::string url;
-};
-
 int showMenu(const std::vector<OperatingSystem>& osList) {
     std::cout << "Seleccione el sistema operativo que desea descargar:\n";
     for (size_t i = 0; i < osList.size(); ++i) {
@@ -34,7 +29,8 @@ int showMenu(const std::vector<OperatingSystem>& osList) {
     return choice - 1;
 }
 
-std::pair<std::string, std::string> install() {
+InstallResult install(const std::string& archost) {
+//std::tuple<std::string, std::string, std::string> install(const std::string& archost) {
     std::vector<OperatingSystem> osList;
     if (archost == "arm") {
         osList = {
@@ -42,7 +38,8 @@ std::pair<std::string, std::string> install() {
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/armhf/alpine-minirootfs-3.19.1-armhf.tar.gz"},
             {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kalifs-armhf-minimal.tar.xz"},
             {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-arm-pd-v4.7.0.tar.xz"},
-            {"ParrotOS", "https://raw.githubusercontent.com/EXALAB/AnLinux-Resources/master/Rootfs/Parrot/armhf/parrot-rootfs-armhf.tar.gz"}
+            {"ParrotOS", "https://raw.githubusercontent.com/EXALAB/AnLinux-Resources/master/Rootfs/Parrot/armhf/parrot-rootfs-armhf.tar.gz"},
+            {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-arm-pd-v4.11.0.tar.xz"}
         };
     } else if (archost == "aarch64") {
         osList = {
@@ -73,29 +70,14 @@ std::pair<std::string, std::string> install() {
     std::string name = osList[selection].name;
     std::string url = osList[selection].url;
     std::string filename;
+
     if (!archost.empty()) {
         filename = name + "-" + archost + url.substr(url.find_last_of('.'));
     } else {
         filename = name + url.substr(url.find_last_of('/'));
     }
 
-    bool success = downloadFile(url, filename);
-
-    std::string outputDirectory = "/data/data/com.termux/files/home/machines";
-
-    if (success) {
-        std::cout << "Se descargó el archivo: " << filename << std::endl;
-        success = extractArchive(filename, outputDirectory);
-        if (success) {
-            std::cout << "Se extrajo el archivo correctamente." << std::endl;
-        } else {
-            std::cerr << "Error al extraer el archivo." << std::endl;
-        }
-    } else {
-        std::cerr << "Error al descargar el archivo." << std::endl;
-    }
-
-    return {name, filename};
+    return {name, url, filename};
 }
 
 namespace fs = std::filesystem;
@@ -113,23 +95,25 @@ fs::path findLinuxRoot(const fs::path& dir) {
     return "";
 }
 
-bool extractArchive(const std::string& filename, const std::string& outputDirectory) {
+std::pair<std::string, bool> extractArchive(const std::string& filename, const std::string& outputDirectory) {
     std::string baseFilename = filename.substr(0, filename.find_first_of("."));
     std::string outputDir = outputDirectory + "/" + baseFilename;
 
-    mkdir(outputDir.c_str(), 0755);
+    if (mkdir(outputDir.c_str(), 0755) != 0) {
+        std::cerr << "Error creating output directory: " << outputDir << std::endl;
+        return std::make_pair("", false);
+    }
 
     struct archive* a = archive_read_new();
     struct archive* ext = archive_write_disk_new();
 
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
-
     archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME);
 
     if (archive_read_open_filename(a, filename.c_str(), 10240) != ARCHIVE_OK) {
         std::cerr << "Error opening archive." << std::endl;
-        return false;
+        return std::make_pair("", false);
     }
 
     int r;
@@ -146,7 +130,7 @@ bool extractArchive(const std::string& filename, const std::string& outputDirect
         if (archive_entry_size(entry) > 0) {
             char buff[8192];
             ssize_t size;
-            while ((size = archive_read_data(a, buff, 8192)) > 0) {
+            while ((size = archive_read_data(a, buff, sizeof(buff))) > 0) {
                 archive_write_data(ext, buff, size);
             }
         }
@@ -182,7 +166,7 @@ bool extractArchive(const std::string& filename, const std::string& outputDirect
         std::cout << "No se eliminó el archivo comprimido." << std::endl;
     }
 
-    return r == ARCHIVE_EOF;
+    return std::make_pair(outputDir, r == ARCHIVE_EOF);
 }
 
 struct ProgressData {
@@ -262,18 +246,8 @@ bool downloadFile(const std::string& url, const std::string& filename) {
     return true;
 }
 
-void AutoCommands() {
-    std::string arch = archchecker();
+void AutoCommands(const std::string& name, const std::string& ROOTFS_DIR) {
 
-    if (arch.empty()) {
-        std::cerr << "Error al verificar la arquitectura. Saliendo del programa." << std::endl;
-        return;
-    }
-
-    std::pair<std::string, std::string> installResult = install();
-    std::string name = installResult.first;
-    std::string outputDir = installResult.second;
-    std::string ROOTFS_DIR = "/data/data/com.termux/files/home/machines/";
     std::string shell_path = "/bin/bash";
 
     std::vector<std::string> commands;
@@ -284,20 +258,17 @@ void AutoCommands() {
             "pacman-key --init && pacman-key --populate archlinuxarm 2>/dev/null",
             R"(read -p 'Creación de usuario - Nombre de usuario: ' username && read -s -p 'Contraseña: ' password && useradd -m -s /bin/bash $username && echo $username:$password | chpasswd && mkdir -p /home/$username && chown $username:$username /home/$username && echo Usuario $username creado exitosamente en /home/$username)"
         };
-        ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Arch-Linux-arm";
     } else if (name == "Debian") {
         shell_path = "/bin/bash";
         commands = {"chmod 1777 /tmp", "echo nameserver 8.8.8.8 > /etc/resolv.conf"};
-        ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Debian-aarch64";
     } else if (name == "Kali-Linux") {
         commands = {"comando_kali_1", "comando_kali_2", "comando_kali_3"};
     } else if (name == "Alpine-Linux") {
         shell_path = "/bin/ash";
         commands = {"ls", "cat /etc/hostname", "pwd"};
-        ROOTFS_DIR = "/data/data/com.termux/files/home/machines/Alpine-Linux-armhf";
     } else {
         std::cerr << "Distribución no reconocida." << std::endl;
-        std::cout << name << "\n" << outputDir << std::endl;
+        std::cout << name << "\n" << ROOTFS_DIR << std::endl;
         return;
     }
 
