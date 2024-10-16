@@ -363,6 +363,44 @@ std::string select_rootfs_dir(const std::string& machines_folder) {
     return "";
 }
 
+int performInstall(const std::string& arch) {
+    checkRoot();
+
+    auto installResult = install(arch);
+    if (installResult.name.empty() || installResult.url.empty()) {
+        std::cerr << "Error: 'name' or 'url' are empty. Exiting." << std::endl;
+        return 1;
+    }
+
+    std::string name = installResult.name;
+    std::string url = installResult.url;
+    std::string filename = installResult.filename;
+
+    bool success = downloadFile(url, filename);
+    std::string outputDirectory = "/data/data/com.termux/files/home/machines";
+
+    if (success) {
+        std::cout << "Rootfs downloaded: " << filename << std::endl;
+
+        auto extractResult = extractArchive(filename, outputDirectory);
+        success = extractResult.second;
+        std::string outputDir = extractResult.first;
+
+        if (success) {
+            std::cout << "Rootfs extracted successfully." << std::endl;
+            AutoCommands(name, outputDir);
+        } else {
+            std::cerr << "Error extracting Rootfs." << std::endl;
+            return 1;
+        }
+    } else {
+        std::cerr << "Error downloading Rootfs." << std::endl;
+        return 1;
+    }
+
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     system("clear");
 
@@ -411,7 +449,7 @@ int main(int argc, char *argv[]) {
         std::cerr << "The location of the home folder could not be obtained." << std::endl;
     }
 
-    std::string ROOTFS_DIR = select_rootfs_dir(machines_folder);
+    std::string ROOTFS_DIR = "";
     std::vector<MountData> mount_list = {
     {"/dev", ROOTFS_DIR + "/dev", ""},
     {"/sys", ROOTFS_DIR + "/sys", ""},
@@ -420,61 +458,40 @@ int main(int argc, char *argv[]) {
     };
 
     if (argc > 1) {
-        if (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help") {
+        std::string arg1 = argv[1];
+
+        if (arg1 == "-h" || arg1 == "--help") {
             usage();
             return 0;
-        } else if (std::string(argv[1]) == "-i") {
+        } else if (arg1 == "-i") {
             checkRoot();
             int terminalWidth = getTerminalWidth();
- //           hightable(terminalWidth);
- //           intertable(terminalWidth, "Contenido dentro.", terminalWidth);
- //           lowtable(terminalWidth);
             machinesOn();
             return 0;
-        } else if (std::string(argv[1]) == "--debug") {
-            bool flag = true;
-        } else if (std::string(argv[1]) == "-k" || std::string(argv[1]) == "--kill") {
-            std::cout << "New function to kill chroot sessions and unmount systems, this way we can shutdown the systems" << std::endl;
-        } else if (std::string(argv[1]) == "-d") {
-            std::string arch = archchecker();
-            if (arch.empty()) {
-                std::cerr << "Error: verifying the architecture. Exiting." << std::endl;
-                return 1;
-            }
-            checkRoot();
-
-            auto installResult = install(arch);
-
-            if (installResult.name.empty() || installResult.url.empty()) {
-                std::cerr << "Error: 'name' or 'url' are empty. Exiting." << std::endl;
-                return 1;
-            }
-
-            std::string name = installResult.name;
-            std::string url = installResult.url;
-            std::string filename = installResult.filename;
-
-            bool success = downloadFile(url, filename);
-
-            std::string outputDirectory = "/data/data/com.termux/files/home/machines";
-
-            if (success) {
-                std::cout << "The Rootfs was downloaded: " << filename << std::endl;
-                auto extractResult = extractArchive(filename, outputDirectory);
-                success = extractResult.second;  // bool
-                std::string outputDir = extractResult.first; // Rootfsdir
-                if (success) {
-                    std::cout << "The Rootfs was extracted correctly." << std::endl;
-                    std::string ROOTFS_DIR = outputDir;
-                    AutoCommands(name, outputDir);
-                } else {
-                    std::cerr << "Error when extracting Rootfs." << std::endl;
-                }
-            } else {
-                std::cerr << "Error downloading Rootfs." << std::endl;
-            }
+        } else if (arg1 == "--debug") {
+            bool debugMode = true;
+            std::cout << "Debug mode enabled." << std::endl;
+        } else if (arg1 == "-k" || arg1 == "--kill") {
+            std::cout << "Terminating chroot sessions and unmounting systems..." << std::endl;
             return 0;
+        } else if (arg1 == "-d") {
+            if (argc > 2) {
+                std::string arch = argv[2];
+
+                return performInstall(arch);
+
+            } else {
+                std::string arch = archchecker();
+                std::cout << "[W] The host architecture is automatically detected.\nYou can specify one manually with: -d [architecture]\n";
+                return performInstall(arch);
+            }
+        } else {
+            std::cerr << "Unknown option: " << arg1 << std::endl;
+            usage();
+            return 1;
         }
+    } else {
+        std::string ROOTFS_DIR = select_rootfs_dir(machines_folder);
     }
 
     mounting(mount_list);
