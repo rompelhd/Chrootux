@@ -30,24 +30,26 @@ int showMenu(const std::vector<OperatingSystem>& osList) {
 }
 
 InstallResult install(const std::string& archost) {
-//std::tuple<std::string, std::string, std::string> install(const std::string& archost) {
     std::vector<OperatingSystem> osList;
-    if (archost == "arm") {
+    if (archost == "arm" || archost == "armhf") {
         osList = {
             {"Arch-Linux", "http://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/armhf/alpine-minirootfs-3.19.1-armhf.tar.gz"},
             {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kalifs-armhf-minimal.tar.xz"},
             {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-arm-pd-v4.7.0.tar.xz"},
-            {"ParrotOS", "https://raw.githubusercontent.com/EXALAB/AnLinux-Resources/master/Rootfs/Parrot/armhf/parrot-rootfs-armhf.tar.gz"},
+            {"ParrotOS", ""},
             {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-arm-pd-v4.11.0.tar.xz"}
         };
-    } else if (archost == "aarch64") {
+    } else if (archost == "aarch64" || archost == "arm64") {
         osList = {
             {"Arch-Linux", "https://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.0-aarch64.tar.gz"},
-            {"Kali-Linux-Minimal", ""},
+            {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kali-nethunter-rootfs-minimal-arm64.tar.xz"},
             {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-aarch64-pd-v4.7.0.tar.xz"},
-            {"ParrotOS", ""}
+            {"ParrotOS", ""},
+            {"Manjaro", "https://github.com/termux/proot-distro/releases/download/v4.14.1/manjaro-aarch64-pd-v4.14.1.tar.xz"},
+            {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-aarch64-pd-v4.11.0.tar.xz"},
+            {"Fedora", "https://github.com/termux/proot-distro/releases/download/v4.15.0/fedora-aarch64-pd-v4.15.0.tar.xz"}
         };
     } else if (archost == "x86_64") {
         osList = {
@@ -262,7 +264,7 @@ void AutoCommands(const std::string& name, const std::string& ROOTFS_DIR) {
         shell_path = "/bin/bash";
         commands = {"chmod 1777 /tmp", "echo nameserver 8.8.8.8 > /etc/resolv.conf"};
     } else if (name == "Kali-Linux") {
-        commands = {"comando_kali_1", "comando_kali_2", "comando_kali_3"};
+        commands = {"chmod 1777 /tmp"};
     } else if (name == "Alpine-Linux") {
         shell_path = "/bin/ash";
         commands = {"ls", "cat /etc/hostname", "pwd"};
