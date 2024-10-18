@@ -21,6 +21,8 @@
 
 namespace fs = std::filesystem;
 
+std::string ROOTFS_DIR;
+
 struct Phrase {
     std::string part1;
     std::string part2;
@@ -449,14 +451,6 @@ int main(int argc, char *argv[]) {
         std::cerr << "The location of the home folder could not be obtained." << std::endl;
     }
 
-    std::string ROOTFS_DIR = "";
-    std::vector<MountData> mount_list = {
-    {"/dev", ROOTFS_DIR + "/dev", ""},
-    {"/sys", ROOTFS_DIR + "/sys", ""},
-    {"/proc", ROOTFS_DIR + "/proc", ""},
-    //{"/sys/class/thermal", ROOTFS_DIR + "/sys/class/thermal", ""},
-    };
-
     if (argc > 1) {
         std::string arg1 = argv[1];
 
@@ -492,10 +486,17 @@ int main(int argc, char *argv[]) {
         }
     } else {
         std::string ROOTFS_DIR = select_rootfs_dir(machines_folder);
-    }
+        std::cout << ROOTFS_DIR << std::endl;
 
-    mounting(mount_list);
-    chrootAndLaunchShell(ROOTFS_DIR, mount_list);
+        std::vector<MountData> mount_list = {
+            {"/dev", ROOTFS_DIR + "/dev", ""},
+            {"/sys", ROOTFS_DIR + "/sys", ""},
+            {"/proc", ROOTFS_DIR + "/proc", ""},
+    //{"/sys/class/thermal", ROOTFS_DIR + "/sys/class/thermal", ""}
+            };
 
+        mounting(mount_list);
+        chrootAndLaunchShell(ROOTFS_DIR, mount_list);
+    };
     return 0;
 }
