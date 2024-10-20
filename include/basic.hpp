@@ -23,6 +23,8 @@ struct MountData {
 
 int getTerminalWidth();
 
+bool isTermux();
+
 void hightable(int totalWidth);
 
 size_t getRealLength(const std::string& str);
