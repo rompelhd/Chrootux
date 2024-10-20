@@ -8,6 +8,10 @@
 #include <archive_entry.h>
 #include <sys/stat.h>
 
+#include <filesystem>
+namespace fs = std::filesystem;
+
+
 std::pair<std::string, std::string> fileInfo;
 
 int showMenu(const std::vector<OperatingSystem>& osList) {
@@ -34,30 +38,35 @@ InstallResult install(const std::string& archost) {
     if (archost == "arm" || archost == "armhf") {
         osList = {
             {"Arch-Linux", "http://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz"},
-            {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/armhf/alpine-minirootfs-3.19.1-armhf.tar.gz"},
+            {"Alpine-Linux", "https://github.com/termux/proot-distro/releases/download/v4.16.0/alpine-arm-pd-v4.16.0.tar.xz"},
             {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kalifs-armhf-minimal.tar.xz"},
             {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-arm-pd-v4.7.0.tar.xz"},
             {"ParrotOS", ""},
-            {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-arm-pd-v4.11.0.tar.xz"}
+            {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-arm-pd-v4.11.0.tar.xz"},
+            {"OpenSUSE", "https://github.com/termux/proot-distro/releases/download/v4.6.0/opensuse-arm-pd-v4.6.0.tar.xz"}
         };
     } else if (archost == "aarch64" || archost == "arm64") {
         osList = {
             {"Arch-Linux", "https://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"},
-            {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/aarch64/alpine-minirootfs-3.19.0-aarch64.tar.gz"},
+            {"Alpine-Linux", "https://github.com/termux/proot-distro/releases/download/v4.16.0/alpine-aarch64-pd-v4.16.0.tar.xz"},
             {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kali-nethunter-rootfs-minimal-arm64.tar.xz"},
             {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-aarch64-pd-v4.7.0.tar.xz"},
             {"ParrotOS", ""},
             {"Manjaro", "https://github.com/termux/proot-distro/releases/download/v4.14.1/manjaro-aarch64-pd-v4.14.1.tar.xz"},
             {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-aarch64-pd-v4.11.0.tar.xz"},
-            {"Fedora", "https://github.com/termux/proot-distro/releases/download/v4.15.0/fedora-aarch64-pd-v4.15.0.tar.xz"}
+            {"Fedora", "https://github.com/termux/proot-distro/releases/download/v4.15.0/fedora-aarch64-pd-v4.15.0.tar.xz"},
+            {"Chimera Linux", "https://github.com/termux/proot-distro/releases/download/v4.16.0/chimera-aarch64-pd-v4.16.0.tar.xz"},
+            {"OpenSUSE", "https://github.com/termux/proot-distro/releases/download/v4.6.0/opensuse-aarch64-pd-v4.6.0.tar.xz"}
         };
     } else if (archost == "x86_64") {
         osList = {
             {"Arch-Linux", ""},
-            {"Alpine-Linux", ""},
-            {"Kali-Linux-Minimal", ""},
-            {"Debian", ""},
-            {"ParrotOS", ""}
+            {"Alpine-Linux", "https://github.com/termux/proot-distro/releases/download/v4.16.0/alpine-x86_64-pd-v4.16.0.tar.xz"},
+            {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kali-nethunter-rootfs-minimal-amd64.tar.xz"},
+            {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-x86_64-pd-v4.7.0.tar.xz"},
+            {"Chimera Linux","https://github.com/termux/proot-distro/releases/download/v4.16.0/chimera-x86_64-pd-v4.16.0.tar.xz"},
+            {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-x86_64-pd-v4.11.0.tar.xz"},
+            {"Fedora", "https://github.com/termux/proot-distro/releases/download/v4.15.0/fedora-x86_64-pd-v4.15.0.tar.xz"}
         };
     } else {
         std::cerr << "Arquitectura no compatible: " << archost << std::endl;
