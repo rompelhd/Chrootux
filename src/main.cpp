@@ -16,6 +16,9 @@
 #include <dirent.h>
 #include <filesystem>
 #include <unordered_set>
+#include <cstring>
+
+
 #include "../include/basic.hpp"
 #include "../include/install.hpp"
 
@@ -148,6 +151,12 @@ void mountFileSystem(const std::string& source, const std::string& target, const
         std::cerr << "Error mounting the file system: " << strerror(errno) << std::endl;
         exit(EXIT_FAILURE);
     }
+
+    // No Host
+    if (mount(nullptr, target.c_str(), nullptr, MS_PRIVATE, nullptr) != 0) {
+        std::cerr << "Error converting mount to private: " << strerror(errno) << std::endl;
+        exit(EXIT_FAILURE);
+    }
 }
 
 void mounting(const std::vector<MountData>& mount_list) {
@@ -163,10 +172,14 @@ void mounting(const std::vector<MountData>& mount_list) {
 }
 
 void unmountFileSystem(const std::string& target) {
-    if (umount2(target.c_str(), MNT_DETACH) != 0) {
-        std::cerr << "Error unmounting the file system: " << strerror(errno) << std::endl;
+    if (isMounted(target)) {
+        if (umount2(target.c_str(), MNT_DETACH) != 0) {
+            std::cerr << "Error unmounting the file system: " << strerror(errno) << std::endl;
+        } else {
+            std::cout << "[" << Colours::greenColour << "✔" << Colours::endColour << "] Unmounted: " << target << std::endl;
+        }
     } else {
-        std::cout << "[" << Colours::greenColour << "✔" << Colours::endColour << "] Unmounted: " << target << std::endl;
+        std::cout << "Skip unmounting, not mounted: " << target << std::endl;
     }
 }
 
@@ -379,7 +392,8 @@ int performInstall(const std::string& arch) {
     std::string filename = installResult.filename;
 
     bool success = downloadFile(url, filename);
-    std::string outputDirectory = "/data/data/com.termux/files/home/machines";
+
+    std::string outputDirectory = machines_folder;
 
     if (success) {
         std::cout << "Rootfs downloaded: " << filename << std::endl;
@@ -460,10 +474,12 @@ int main(int argc, char *argv[]) {
         } else if (arg1 == "-i") {
             checkRoot();
             int terminalWidth = getTerminalWidth();
+            (void)terminalWidth;
             machinesOn();
             return 0;
         } else if (arg1 == "--debug") {
             bool debugMode = true;
+            (void)debugMode;
             std::cout << "Debug mode enabled." << std::endl;
         } else if (arg1 == "-k" || arg1 == "--kill") {
             std::cout << "Terminating chroot sessions and unmounting systems..." << std::endl;
