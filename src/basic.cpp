@@ -12,6 +12,8 @@
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <set>
+#include <cstring>
+
 
 int getTerminalWidth() {
     winsize w;
@@ -61,7 +63,7 @@ void intertable(int totalWidth, const std::string& li_content, int terminalWidth
     std::string additionalSpacesFirst;
     std::string additionalSpacesSecond;
 
-    if (realLength >= terminalWidth) {
+    if (realLength >= static_cast<size_t>(terminalWidth)) {
         size_t lastSpace = output.rfind(' ', terminalWidth);
 
         std::string firstLine = output.substr(0, lastSpace);
@@ -85,7 +87,7 @@ void intertable(int totalWidth, const std::string& li_content, int terminalWidth
 
     } else {
         std::cout << Colours::blueColour << output;
-        for (int i = 0; i < spacesNeeded; ++i) {
+        for (size_t i = 0; i < static_cast<size_t>(spacesNeeded); ++i) {
             std::cout << " ";
         }
         std::cout << Colours::blueColour << " │" << std::endl;
@@ -146,8 +148,7 @@ std::string createMachinesFolderIfNotExists(const std::string& home_dir) {
         std::string home_folder = "/data/data/com.termux/files/home/";
         machines_folder = home_folder + "machines";
     } else {
-        std::cout << "No estás en Termux." << std::endl;
-        return "";
+        machines_folder = home_dir + "/machines";
     }
 
     struct stat info;
@@ -218,7 +219,7 @@ std::string formatSize(long long size) {
     const char* sizes[] = {"B", "KB", "MB", "GB"};
     int i = 0;
     double bytes = size;
-    while (bytes >= 1024 && i < (sizeof(sizes) / sizeof(sizes[0])) - 1) {
+    while (bytes >= 1024 && i < static_cast<int>(sizeof(sizes) / sizeof(sizes[0])) - 1) {
         bytes /= 1024;
         i++;
     }
