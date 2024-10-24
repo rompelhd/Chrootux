@@ -43,7 +43,8 @@ InstallResult install(const std::string& archost) {
             {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-arm-pd-v4.7.0.tar.xz"},
             {"ParrotOS", ""},
             {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-arm-pd-v4.11.0.tar.xz"},
-            {"OpenSUSE", "https://github.com/termux/proot-distro/releases/download/v4.6.0/opensuse-arm-pd-v4.6.0.tar.xz"}
+            {"OpenSUSE", "https://github.com/termux/proot-distro/releases/download/v4.6.0/opensuse-arm-pd-v4.6.0.tar.xz"},
+            {"Raspberry OS Lite Bullseye", "https://downloads.raspberrypi.com/raspios_lite_armhf/root.tar.xz"}
         };
     } else if (archost == "aarch64" || archost == "arm64") {
         osList = {
@@ -56,7 +57,8 @@ InstallResult install(const std::string& archost) {
             {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-aarch64-pd-v4.11.0.tar.xz"},
             {"Fedora", "https://github.com/termux/proot-distro/releases/download/v4.15.0/fedora-aarch64-pd-v4.15.0.tar.xz"},
             {"Chimera Linux", "https://github.com/termux/proot-distro/releases/download/v4.16.0/chimera-aarch64-pd-v4.16.0.tar.xz"},
-            {"OpenSUSE", "https://github.com/termux/proot-distro/releases/download/v4.6.0/opensuse-aarch64-pd-v4.6.0.tar.xz"}
+            {"OpenSUSE", "https://github.com/termux/proot-distro/releases/download/v4.6.0/opensuse-aarch64-pd-v4.6.0.tar.xz"},
+            {"Raspberry OS Lite Bullseye", "https://downloads.raspberrypi.com/raspios_lite_arm64/root.tar.xz}
         };
     } else if (archost == "x86_64") {
         osList = {
