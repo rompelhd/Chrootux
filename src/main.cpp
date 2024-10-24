@@ -443,6 +443,7 @@ int main(int argc, char *argv[]) {
     setenv("SHELL", "/bin/bash", 1);
     setenv("TERM", "xterm", 1);
     setenv("DEVPTS_MOUNT", "/dev/pts", 1);
+    setenv("TMPDIR", "/tmp", 1);
     setenv("TZ", "Europe/Madrid", 1);
     setenv("LANGUAGE", "C", 1);
     setenv("LANG", "C", 1);
