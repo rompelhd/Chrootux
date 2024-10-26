@@ -58,7 +58,7 @@ InstallResult install(const std::string& archost) {
             {"Fedora", "https://github.com/termux/proot-distro/releases/download/v4.15.0/fedora-aarch64-pd-v4.15.0.tar.xz"},
             {"Chimera Linux", "https://github.com/termux/proot-distro/releases/download/v4.16.0/chimera-aarch64-pd-v4.16.0.tar.xz"},
             {"OpenSUSE", "https://github.com/termux/proot-distro/releases/download/v4.6.0/opensuse-aarch64-pd-v4.6.0.tar.xz"},
-            {"Raspberry OS Lite Bullseye", "https://downloads.raspberrypi.com/raspios_lite_arm64/root.tar.xz}
+            {"Raspberry OS Lite Bullseye", "https://downloads.raspberrypi.com/raspios_lite_arm64/root.tar.xz"}
         };
     } else if (archost == "x86_64") {
         osList = {
