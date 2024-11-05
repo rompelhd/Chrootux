@@ -41,7 +41,7 @@ InstallResult install(const std::string& archost) {
             {"Alpine-Linux", "https://github.com/termux/proot-distro/releases/download/v4.16.0/alpine-arm-pd-v4.16.0.tar.xz"},
             {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kalifs-armhf-minimal.tar.xz"},
             {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-arm-pd-v4.7.0.tar.xz"},
-            {"ParrotOS", ""},
+            {"ParrotOS", "https://github.com/rompelhd/Parrotos/releases/download/1.0/ParrotOS-Core-arm.tar.xz"},
             {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-arm-pd-v4.11.0.tar.xz"},
             {"OpenSUSE", "https://github.com/termux/proot-distro/releases/download/v4.6.0/opensuse-arm-pd-v4.6.0.tar.xz"},
             {"Raspberry OS Lite Bullseye", "https://downloads.raspberrypi.com/raspios_lite_armhf/root.tar.xz"}
