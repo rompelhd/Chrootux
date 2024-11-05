@@ -52,7 +52,7 @@ InstallResult install(const std::string& archost) {
             {"Alpine-Linux", "https://github.com/termux/proot-distro/releases/download/v4.16.0/alpine-aarch64-pd-v4.16.0.tar.xz"},
             {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kali-nethunter-rootfs-minimal-arm64.tar.xz"},
             {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-aarch64-pd-v4.7.0.tar.xz"},
-            {"ParrotOS", ""},
+            {"ParrotOS", "https://github.com/rompelhd/Parrotos/releases/download/1.0/ParrotOS-Core-aarch64.tar.xz"},
             {"Manjaro", "https://github.com/termux/proot-distro/releases/download/v4.14.1/manjaro-aarch64-pd-v4.14.1.tar.xz"},
             {"Ubuntu Noble", "https://github.com/termux/proot-distro/releases/download/v4.11.0/ubuntu-noble-aarch64-pd-v4.11.0.tar.xz"},
             {"Fedora", "https://github.com/termux/proot-distro/releases/download/v4.15.0/fedora-aarch64-pd-v4.15.0.tar.xz"},
