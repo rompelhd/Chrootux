@@ -48,7 +48,7 @@ v0.3.7                                      Tool Written By Rompelhd     __| ". 
                                                                          |    `.       | `' \Zq
                                                                         _)      \.___.,|     .'
                                                                         \____   )MMMMMM|   .'
-                                                                             `-'       `--' hjm
+                                                                             `-'       `--' 
 
 )";
 }
