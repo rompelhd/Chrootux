@@ -419,7 +419,9 @@ int performInstall(const std::string& arch) {
 
 int main(int argc, char *argv[]) {
     system("clear");
-
+    
+    snowtest();
+    
     std::vector<Phrase> phrases = {
         {"Engineered by hackers,  ", "tailored for hackers.   "},
         {"In C++, engineered for  ", "speed and optimization. "},
