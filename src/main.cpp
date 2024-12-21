@@ -21,6 +21,7 @@
 
 #include "../include/basic.hpp"
 #include "../include/install.hpp"
+#include "../include/snow-effect.hpp"
 
 namespace fs = std::filesystem;
 
