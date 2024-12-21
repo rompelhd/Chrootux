@@ -221,27 +221,28 @@ void Gloop(int sleep_) {
 }
 
 int snowtest() {
-    if (is_christmas_season()) {
-        srand(time(NULL));
-        GInit();
+    if (!is_christmas_season()) {
+        return 0;
+    }
 
-        Controler controler;
-        bool quit = false;
+    srand(time(NULL));
+    GInit();
 
-        while (!quit) {
-            int ch = getch();
-            if (ch == 'q' || ch == 'Q') {
-                quit = true;
-            }
+    Controler controler;
+    bool quit = false;
 
-            draw_snow();
-            controler.loop();
-
-            draw_message();
-
-            Gloop(FPS);
+    while (!quit) {
+        int ch = getch();
+        if (ch == 'q' || ch == 'Q') {
+            quit = true;
         }
 
-        GEnd();
-        return 0;
+        draw_snow();
+        controler.loop();
+        draw_message();
+        Gloop(FPS);
+    }
+
+    GEnd();
+    return 0;
 }
