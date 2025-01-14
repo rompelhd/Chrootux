@@ -512,8 +512,11 @@ int main(int argc, char *argv[]) {
             {"/dev", ROOTFS_DIR + "/dev", ""},
             {"/sys", ROOTFS_DIR + "/sys", ""},
             {"/proc", ROOTFS_DIR + "/proc", ""},
-    //{"/sys/class/thermal", ROOTFS_DIR + "/sys/class/thermal", ""}
             };
+
+        if (std::filesystem::exists("/sys/class/thermal")) {
+            mount_list.push_back({"/sys/class/thermal", ROOTFS_DIR + "/sys/class/thermal", ""});
+        }
 
         mounting(mount_list);
         chrootAndLaunchShell(ROOTFS_DIR, mount_list);
