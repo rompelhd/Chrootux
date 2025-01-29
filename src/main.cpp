@@ -3,11 +3,11 @@
 #include <sys/statvfs.h>
 #include <iostream>
 #include <cstdlib>
-#include <unistd.h>
+#include <unistd.h> // For fork(), exec(), chroot()
 #include <vector>
-#include <sys/stat.h>
+#include <sys/stat.h> // For mkdir()
 #include <fstream>
-#include <sys/mount.h>
+#include <sys/mount.h> // For mount(), unmount()
 #include <random>
 #include <chrono>
 #include <algorithm>
@@ -22,6 +22,14 @@
 #include "../include/basic.hpp"
 #include "../include/install.hpp"
 #include "../include/snow-effect.hpp"
+
+#ifndef SYS_pivot_root
+#define SYS_pivot_root 155
+#endif
+
+#ifndef SYS_unshare
+#define SYS_unshare 272
+#endif
 
 namespace fs = std::filesystem;
 
@@ -199,6 +207,8 @@ std::string generateRandomVariation() {
 }
 
 void ChrootingTime() {
+    std::cout << "\033[?25l" << std::flush;
+
     for (int i = 0; i < 10; ++i) {
         std::string variation = generateRandomVariation();
 
@@ -209,7 +219,7 @@ void ChrootingTime() {
         std::cout << '\r';
     }
 
-    std::cout << std::endl;
+    std::cout << "\033[?25h" << std::endl;
 }
 
 void mountChrootAndExecute(const std::string& ROOTFS_DIR, const std::vector<MountData>& mount_list, const std::vector<std::string>& commands, const std::string& shell_path) {
@@ -269,7 +279,25 @@ void mountChrootAndExecute(const std::string& ROOTFS_DIR, const std::vector<Moun
     }
 }
 
-void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<MountData>& mount_list) {
+bool check_pivot_root() {
+    int result = syscall(SYS_pivot_root, ".", ".");
+    if (result == -1 && errno == EINVAL) {
+        return true;
+    }
+    return false;
+}
+
+bool check_unshare() {
+    int result = syscall(SYS_unshare, CLONE_NEWPID | CLONE_NEWNS);
+    if (result == -1 && errno == EPERM) {
+        return true;
+    } else if (result == -1) {
+        return false;
+    }
+    return true;
+}
+
+void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vector<MountData>& mount_list) {
     pid_t pid = fork();
 
     if (pid == -1) {
@@ -348,6 +376,89 @@ void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<Mount
     }
 }
 
+void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<MountData>& mount_list) {
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        perror("Error al crear el proceso hijo");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pid == 0) {
+        if (unshare(CLONE_NEWPID | CLONE_NEWNS) == -1) {
+            perror("Error al crear un nuevo PID y Mount namespaces");
+            exit(EXIT_FAILURE);
+        }
+
+        pid_t child_pid = fork();
+
+        if (child_pid == -1) {
+            perror("Error al hacer fork en el nuevo namespace");
+            exit(EXIT_FAILURE);
+        }
+
+        if (child_pid == 0) {
+            if (mount("proc", "/proc", "proc", 0, NULL) == -1) {
+                perror("Error al montar /proc en el nuevo namespace");
+                exit(EXIT_FAILURE);
+            }
+
+            if (chroot(ROOTFS_DIR.c_str()) != 0) {
+                perror("Error al hacer chroot");
+                exit(EXIT_FAILURE);
+            }
+
+            if (chdir("/") != 0) {
+                perror("Error al cambiar el directorio de trabajo");
+                exit(EXIT_FAILURE);
+            }
+
+            if (mount("proc", "/proc", "proc", 0, NULL) == -1) {
+                perror("Error al montar /proc en el nuevo rootfs");
+                exit(EXIT_FAILURE);
+            }
+
+            std::string dbus_dir = "/run/dbus";
+            if (mkdir(dbus_dir.c_str(), 0755) != 0 && errno != EEXIST) {
+                perror("Error al crear el directorio /run/dbus");
+                exit(EXIT_FAILURE);
+            }
+
+            pid_t dbus_pid = fork();
+            if (dbus_pid == 0) {
+                int dev_null = open("/dev/null", O_WRONLY);
+                if (dev_null != -1) {
+                    dup2(dev_null, STDOUT_FILENO);
+                    dup2(dev_null, STDERR_FILENO);
+                    close(dev_null);
+                }
+
+                execl("/usr/bin/dbus-daemon", "dbus-daemon", "--system", "--nofork", "--nopidfile", (char*)NULL);
+                perror("Error al ejecutar dbus-daemon");
+                exit(EXIT_FAILURE);
+            }
+
+            sleep(1);
+
+            execl("/bin/bash", "bash", (char*)NULL);
+            perror("Error al ejecutar el shell interactivo de bash");
+            exit(EXIT_FAILURE);
+        } else {
+            int status;
+            waitpid(child_pid, &status, 0);
+
+            exit(status);
+        }
+    } else {
+        int status;
+        waitpid(pid, &status, 0);
+
+        for (const auto& entry : mount_list) {
+            unmountFileSystem(entry.target);
+        }
+    }
+}
+
 std::string select_rootfs_dir(const std::string& machines_folder) {
     std::vector<std::string> directories;
 
@@ -416,6 +527,83 @@ int performInstall(const std::string& arch) {
     }
 
     return 0;
+}
+
+void create_simulated_hwmon() {
+    const char* home_dir = std::getenv("HOME");
+    std::string SIMULATED_HWMON_DIR = std::string(home_dir) + "/.config/Chrootux/hwmon";
+
+    if (std::filesystem::exists(SIMULATED_HWMON_DIR)) {
+        std::cout << "Using existing simulated hwmon directory: " << SIMULATED_HWMON_DIR << std::endl;
+        return;
+    }
+
+    //std::filesystem::create_directories(SIMULATED_HWMON_DIR);
+
+    DIR* dir = opendir("/sys/class/thermal/");
+    if (dir == nullptr) {
+        std::cerr << "Error: Unable to open thermal directory." << std::endl;
+        return;
+    }
+
+    struct dirent* entry;
+    int hwmon_counter = 0;
+
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string name(entry->d_name);
+        if (name.find("thermal_zone") != std::string::npos) {
+            std::string type_file = "/sys/class/thermal/" + name + "/type";
+            std::string temp_file = "/sys/class/thermal/" + name + "/temp";
+
+            std::ifstream type_stream(type_file);
+            std::string type;
+            std::getline(type_stream, type);
+
+            if (!type.empty() && std::filesystem::exists(temp_file)) {
+                std::string hwmon_dir = SIMULATED_HWMON_DIR + "/hwmon" + std::to_string(hwmon_counter++);
+                std::filesystem::create_directories(hwmon_dir);
+
+                std::ofstream name_file(hwmon_dir + "/name");
+                name_file << type << std::endl;
+
+                std::string temp1_input_link = hwmon_dir + "/temp1_input";
+                std::filesystem::create_symlink(temp_file, temp1_input_link);
+
+                std::ofstream temp1_label_file(hwmon_dir + "/temp1_label");
+                temp1_label_file << type << std::endl;
+
+            }
+        }
+    }
+    closedir(dir);
+}
+
+void check_and_add_hwmon_mounts(const std::string& ROOTFS_DIR, std::vector<MountData>& mount_list) {
+    std::string SIMULATED_HWMON_DIR = "/data/data/com.termux/files/root-home/.config/Chrootux/";
+
+    if (!std::filesystem::exists(SIMULATED_HWMON_DIR)) {
+        std::cerr << "Error: Base directory does not exist: " << SIMULATED_HWMON_DIR << std::endl;
+        return;
+    }
+
+    bool hwmon_found = false;
+
+    for (const auto& entry : std::filesystem::directory_iterator(SIMULATED_HWMON_DIR)) {
+        std::string dir_name = entry.path().filename().string();
+
+        if (dir_name.find("hwmon") == 0 && std::filesystem::is_directory(entry)) {
+            std::cout << "Found " << SIMULATED_HWMON_DIR + "/" + dir_name << std::endl;
+
+            std::string mount_dir = ROOTFS_DIR + "/sys/class/hwmon/" + dir_name;
+
+            mount_list.push_back({SIMULATED_HWMON_DIR + "/" + dir_name, ROOTFS_DIR + "/sys/class/" + dir_name, ""});
+            hwmon_found = true;
+        }
+    }
+
+    if (!hwmon_found) {
+        std::cout << "No found dirs hwmon." << std::endl;
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -514,12 +702,20 @@ int main(int argc, char *argv[]) {
             {"/proc", ROOTFS_DIR + "/proc", ""},
             };
 
-        if (std::filesystem::exists("/sys/class/thermal")) {
-            mount_list.push_back({"/sys/class/thermal", ROOTFS_DIR + "/sys/class/thermal", ""});
-        }
+        //check_and_add_hwmon_mounts(ROOTFS_DIR, mount_list); only termux
 
         mounting(mount_list);
-        chrootAndLaunchShell(ROOTFS_DIR, mount_list);
+
+        bool pivot_root_supported = check_pivot_root();
+        bool unshare_supported = check_unshare();
+
+        if (pivot_root_supported && unshare_supported) {
+            chrootAndLaunchShell(ROOTFS_DIR, mount_list);
+        } else {
+            chrootAndLaunchShellUnsecure(ROOTFS_DIR, mount_list);
+        }
+
+        //chrootAndLaunchShell(ROOTFS_DIR, mount_list);
     };
     return 0;
 }
