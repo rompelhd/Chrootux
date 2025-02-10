@@ -274,8 +274,8 @@ void AutoCommands(const std::string& name, const std::string& ROOTFS_DIR) {
     } else if (name == "Debian") {
         shell_path = "/bin/bash";
         commands = {"chmod 1777 /tmp", "echo nameserver 8.8.8.8 > /etc/resolv.conf"};
-    } else if (name == "Kali-Linux") {
-        commands = {"chmod 1777 /tmp"};
+    } else if (name == "Kali-Linux-Minimal") {
+        commands = {"chmod 1777 /tmp", "echo nameserver 8.8.8.8 > /etc/resolv.conf"};
     } else if (name == "Alpine-Linux") {
         shell_path = "/bin/ash";
         commands = {"ls", "cat /etc/hostname", "pwd"};
