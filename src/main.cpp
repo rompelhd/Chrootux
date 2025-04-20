@@ -57,7 +57,7 @@ v0.3.7                                      Tool Written By Rompelhd     __| ". 
                                                                          |    `.       | `' \Zq
                                                                         _)      \.___.,|     .'
                                                                         \____   )MMMMMM|   .'
-                                                                             `-'       `--' 
+                                                                             `-'       `--'
 
 )";
 }
@@ -334,7 +334,6 @@ void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vect
             close(dev_null);
 
             if (execl("/usr/bin/dbus-daemon", "dbus-daemon", "--system", "--nofork", "--nopidfile", (char *)NULL) == -1) {
-              //  perror("Error al ejecutar dbus-daemon");
                 exit(EXIT_FAILURE);
             }
         } else if (dbus_pid > 0) {
@@ -342,17 +341,23 @@ void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vect
             ChrootingTime();
             std::cout << "\n";
 
-            pid_t bash_pid = fork();
-            if (bash_pid == 0) {
-                if (execl("/bin/bash", "bash", (char *)NULL) == -1) {
-                    perror("Error al ejecutar el shell interactivo de bash");
-                    exit(EXIT_FAILURE);
+            pid_t shell_pid = fork();
+            if (shell_pid == 0) {
+                std::vector<std::string> shells = {"/bin/bash", "/bin/ash", "/bin/sh"};
+
+                for (const auto& shell : shells) {
+                    if (access(shell.c_str(), X_OK) == 0) {
+                        execl(shell.c_str(), shell.c_str(), (char *)NULL);
+                    }
                 }
-            } else if (bash_pid > 0) {
-                int bash_status;
-                waitpid(bash_pid, &bash_status, 0);
+
+                perror("No se pudo encontrar un shell ejecutable (bash, ash, sh)");
+                exit(EXIT_FAILURE);
+            } else if (shell_pid > 0) {
+                int shell_status;
+                waitpid(shell_pid, &shell_status, 0);
             } else {
-                perror("Error al crear el proceso hijo para bash");
+                perror("Error al crear el proceso hijo para el shell");
                 exit(EXIT_FAILURE);
             }
 
@@ -371,12 +376,11 @@ void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vect
 
         for (const auto& entry : mount_list) {
             unmountFileSystem(entry.target);
-
         }
     }
 }
 
-void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<MountData>& mount_list) {
+/*void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<MountData>& mount_list) {
     pid_t pid = fork();
 
     if (pid == -1) {
@@ -457,7 +461,7 @@ void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<Mount
             unmountFileSystem(entry.target);
         }
     }
-}
+}*/
 
 std::string select_rootfs_dir(const std::string& machines_folder) {
     std::vector<std::string> directories;
@@ -608,9 +612,9 @@ void check_and_add_hwmon_mounts(const std::string& ROOTFS_DIR, std::vector<Mount
 
 int main(int argc, char *argv[]) {
     system("clear");
-    
+
     snowtest();
-    
+
     std::vector<Phrase> phrases = {
         {"Engineered by hackers,  ", "tailored for hackers.   "},
         {"In C++, engineered for  ", "speed and optimization. "},
@@ -627,7 +631,8 @@ int main(int argc, char *argv[]) {
     printBanner(randomPhrase.part1, randomPhrase.part2);
 
     // EnvVariables
-    setenv("PATH", "/sbin:/usr/bin:/usr/sbin:/system/bin:/system/xbin:$PATH", 1);
+    //setenv("PATH", "/sbin:/usr/bin:/usr/sbin:/system/bin:/system/xbin:$PATH", 1);
+    setenv("PATH", "/sbin:/usr/bin:/usr/sbin:/bin:/system/bin:/system/xbin", 1);
     setenv("LD_LIBRARY_PATH", "/lib:/usr/lib", 1);
     setenv("USER", "root", 1);
     setenv("HOME", "/root", 1);
@@ -710,7 +715,7 @@ int main(int argc, char *argv[]) {
         bool unshare_supported = check_unshare();
 
         if (pivot_root_supported && unshare_supported) {
-            chrootAndLaunchShell(ROOTFS_DIR, mount_list);
+            chrootAndLaunchShellUnsecure(ROOTFS_DIR, mount_list);
         } else {
             chrootAndLaunchShellUnsecure(ROOTFS_DIR, mount_list);
         }
