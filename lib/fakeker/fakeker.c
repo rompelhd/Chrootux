@@ -9,6 +9,18 @@
 #include <string.h>
 #include <stdio.h>
 
+#ifndef _UTSNAME_SYSNAME_LENGTH
+#define _UTSNAME_SYSNAME_LENGTH 65
+#endif
+
+#ifndef _UTSNAME_VERSION_LENGTH
+#define _UTSNAME_VERSION_LENGTH 65
+#endif
+
+#ifndef _UTSNAME_RELEASE_LENGTH
+#define _UTSNAME_RELEASE_LENGTH 65
+#endif
+
 int fkernel(struct utsname *un) {
     int ret = syscall(SYS_uname, un);
     if (ret != 0) {
