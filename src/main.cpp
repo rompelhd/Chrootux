@@ -63,14 +63,16 @@ v0.3.7                                      Tool Written By Rompelhd     __| ". 
 }
 
 void usage() {
-    std::cout << "\n" << Colours::purpleColour << "Uso: chrootux [OPCIONES] [COMANDOS]\n\n"
-              << "Opciones:\n"
-              << "  -i INFO               La informacion actual del chroot\n"
-              << "  -c CREATE             Permite la creacion de un usuario\n"
-              << "  -n NAME               Para iniciar la shell con otro usuario\n"
-              << "  -p PASSW              Cambia la contraseña de un usuario existente\n"
-              << "  -u UPDATE             Actualizar el chroot selecionado\n"
-              << "  -h HELP               Enseña esta ayuda\n\n"
+    std::cout << "\n" << Colours::purpleColour << "Usage: chrootux [OPTIONS] [COMMANDS]\n\n"
+              << "Options:\n"
+              << "  -i INFO               Current information about the chroot\n"
+              << "  -c CREATE             Allows the creation of a user\n"
+              << "  -n NAME               Start the shell with another user\n"
+              << "  -p PASSW              Change the password of an existing user\n"
+              << "  -u UPDATE             Update the selected chroot\n"
+              << "  -h HELP               Show this help\n"
+              << "  -d [ARCH]             Open menu to download distros\n"
+              << "                        If ARCH is provided, list distros for that architecture\n\n"
               << "Warning, use of this script is at your own risk.\n"
               << "I am not responsible for your wrongdoings.\n"
               << Colours::endColour << std::endl;
@@ -301,25 +303,25 @@ void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vect
     pid_t pid = fork();
 
     if (pid == -1) {
-        perror("Error al crear el proceso hijo");
+        perror("Error creating child process");
         exit(EXIT_FAILURE);
     }
 
     if (pid == 0) {
 
         if (chroot(ROOTFS_DIR.c_str()) != 0) {
-            perror("Error al hacer chroot");
+            perror("Error while chrooting");
             exit(EXIT_FAILURE);
         }
 
         if (chdir("/") != 0) {
-            perror("Error al cambiar el directorio de trabajo");
+            perror("Error while changing the working directory");
             exit(EXIT_FAILURE);
         }
 
         std::string dbus_dir = "/run/dbus";
         if (mkdir(dbus_dir.c_str(), 0755) != 0 && errno != EEXIST) {
-            perror("Error al crear el directorio /run/dbus");
+            perror("Error when creating the /run/dbus directory");
             exit(EXIT_FAILURE);
         }
 
@@ -327,7 +329,7 @@ void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vect
         if (dbus_pid == 0) {
             int dev_null = open("/dev/null", O_WRONLY);
             if (dev_null == -1) {
-                perror("Error al abrir /dev/null");
+                perror("Error opening /dev/null");
                 exit(EXIT_FAILURE);
             }
             dup2(dev_null, STDOUT_FILENO);
@@ -351,22 +353,22 @@ void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vect
                     }
                 }
 
-                perror("No se pudo encontrar un shell ejecutable (bash, ash, sh)");
+                perror("An executable shell (bash, ash, sh) could not be found.");
                 exit(EXIT_FAILURE);
             } else if (shell_pid > 0) {
                 int shell_status;
                 waitpid(shell_pid, &shell_status, 0);
             } else {
-                perror("Error al crear el proceso hijo para el shell");
+                perror("Error creating child process for shell");
                 exit(EXIT_FAILURE);
             }
 
             if (kill(dbus_pid, SIGTERM) == -1) {
-                perror("Error al terminar dbus-daemon");
+                perror("Error terminating dbus-daemon");
                 exit(EXIT_FAILURE);
             }
         } else {
-            perror("Error al crear el proceso hijo para dbus-daemon");
+            perror("Error creating child process for dbus-daemon");
             exit(EXIT_FAILURE);
         }
     } else {
@@ -491,7 +493,7 @@ std::string select_rootfs_dir(const std::string& machines_folder) {
     }
 
     std::cerr << "No system was found on machines." << std::endl;
-    return "";
+    std::exit(EXIT_FAILURE);
 }
 
 int performInstall(const std::string& arch) {
