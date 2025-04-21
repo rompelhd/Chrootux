@@ -15,18 +15,18 @@ namespace fs = std::filesystem;
 std::pair<std::string, std::string> fileInfo;
 
 int showMenu(const std::vector<OperatingSystem>& osList) {
-    std::cout << "Seleccione el sistema operativo que desea descargar:\n";
+    std::cout << "Select the operating system you want to download:\n";
     for (size_t i = 0; i < osList.size(); ++i) {
         std::cout << i + 1 << ". " << osList[i].name << "\n";
     }
 
     int choice;
-    std::cout << "Ingrese el número correspondiente: ";
+    std::cout << "Enter the corresponding number: ";
     std::cin >> choice;
     std::cout << "\n";
 
     if (choice < 1 || choice > static_cast<int>(osList.size())) {
-        std::cout << "Selección no válida. Por favor, elija un número entre 1 y " << osList.size() << ".\n";
+        std::cout << "Invalid selection. Please choose a number between 1 and " << osList.size() << ".\n";
         return -1;
     }
 
@@ -71,7 +71,7 @@ InstallResult install(const std::string& archost) {
             {"Fedora", "https://github.com/termux/proot-distro/releases/download/v4.15.0/fedora-x86_64-pd-v4.15.0.tar.xz"}
         };
     } else {
-        std::cerr << "Arquitectura no compatible: " << archost << std::endl;
+        std::cerr << "Unsupported architecture: " << archost << std::endl;
         return {};
     }
 
@@ -169,14 +169,14 @@ std::pair<std::string, bool> extractArchive(const std::string& filename, const s
     }
 
     std::string input;
-    std::cout << "¿Desea eliminar el archivo comprimido '" << filename << "'? (yes/no): ";
+    std::cout << "Do you want to delete the compressed file '" << filename << "'? (yes/no): ";
     std::cin >> input;
 
     if (input == "yes") {
         std::remove(filename.c_str());
-        std::cout << "Archivo comprimido eliminado." << std::endl;
+        std::cout << "Compressed file deleted." << std::endl;
     } else {
-        std::cout << "No se eliminó el archivo comprimido." << std::endl;
+        std::cout << "Compressed file was not deleted." << std::endl;
     }
 
     return std::make_pair(outputDir, r == ARCHIVE_EOF);
@@ -208,13 +208,13 @@ int progressCallback(void *clientp, curl_off_t dltotal, curl_off_t dlnow, curl_o
 bool downloadFile(const std::string& url, const std::string& filename) {
     CURL* curl = curl_easy_init();
     if (!curl) {
-        std::cerr << "Error al inicializar libcurl." << std::endl;
+        std::cerr << "Error initializing libcurl." << std::endl;
         return false;
     }
 
     FILE* fp = fopen(filename.c_str(), "wb");
     if (!fp) {
-        std::cerr << "Error al abrir el archivo de salida." << std::endl;
+        std::cerr << "Error opening the output file." << std::endl;
         curl_easy_cleanup(curl);
         return false;
     }
@@ -232,7 +232,7 @@ bool downloadFile(const std::string& url, const std::string& filename) {
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
-        std::cerr << "Error al descargar el archivo: " << curl_easy_strerror(res) << std::endl;
+        std::cerr << "Error downloading file: " << curl_easy_strerror(res) << std::endl;
         fclose(fp);
         curl_easy_cleanup(curl);
         return false;
@@ -243,7 +243,7 @@ bool downloadFile(const std::string& url, const std::string& filename) {
 
     fp = fopen(filename.c_str(), "rb");
     if (!fp) {
-        std::cerr << "Error al abrir el archivo para verificación." << std::endl;
+        std::cerr << "Error opening the file for verification." << std::endl;
         return false;
     }
     fseek(fp, 0, SEEK_END);
@@ -251,11 +251,11 @@ bool downloadFile(const std::string& url, const std::string& filename) {
     fclose(fp);
 
     if (fileSize == 0) {
-        std::cerr << "El archivo descargado está vacío." << std::endl;
+        std::cerr << "The downloaded file is empty." << std::endl;
         return false;
     }
 
-    std::cout << "Descarga completada." << std::endl;
+    std::cout << "Download completed." << std::endl;
     return true;
 }
 
@@ -278,9 +278,9 @@ void AutoCommands(const std::string& name, const std::string& ROOTFS_DIR) {
         commands = {"chmod 1777 /tmp", "echo nameserver 8.8.8.8 > /etc/resolv.conf"};
     } else if (name == "Alpine-Linux") {
         shell_path = "/bin/ash";
-        commands = {"ls", "cat /etc/hostname", "pwd"};
+        commands = {"chmod 1777 /tmp", "echo nameserver 8.8.8.8 > /etc/resolv.conf"};
     } else {
-        std::cerr << "Distribución no reconocida." << std::endl;
+        std::cerr << "Unrecognized distribution." << std::endl;
         std::cout << name << "\n" << ROOTFS_DIR << std::endl;
         return;
     }
@@ -291,11 +291,11 @@ void AutoCommands(const std::string& name, const std::string& ROOTFS_DIR) {
         {"/proc", ROOTFS_DIR + "/proc", ""}
     };
 
-    std::cout << "\nComandos a ejecutar:\n";
+    std::cout << "\nCommands to execute:\n";
     for (const auto& cmd : commands) {
         std::cout << "- " << cmd << "\n";
     }
-    std::cout << "\n- Shell a usar: " << shell_path << "\n\n";
+    std::cout << "\n- Shell to use: " << shell_path << "\n\n";
 
     mountChrootAndExecute(ROOTFS_DIR, mount_list, commands, shell_path);
 }
