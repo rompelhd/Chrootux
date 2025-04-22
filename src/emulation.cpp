@@ -13,11 +13,11 @@ void run_arm64_binary(const std::string& binary_path) {
     }
 }
 
-int main() {
-    std::string binary_path = "/data/data/com.termux/files/home/Chrootux/ls";
-    run_arm64_binary(binary_path);
-    return 0;
-}
+//int main() {
+//    std::string binary_path = "/data/data/com.termux/files/home/Chrootux/ls";
+//    run_arm64_binary(binary_path);
+//    return 0;
+//}
 
 
 // Testing
