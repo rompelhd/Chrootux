@@ -18,10 +18,15 @@
 #include <unordered_set>
 #include <cstring>
 
-
 #include "../include/basic.hpp"
 #include "../include/install.hpp"
 #include "../include/snow-effect.hpp"
+
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <cerrno>
+#include <sys/sysmacros.h>
 
 #ifndef SYS_pivot_root
 #define SYS_pivot_root 155
@@ -34,6 +39,83 @@
 namespace fs = std::filesystem;
 
 std::string ROOTFS_DIR;
+
+bool isMounted(const std::string& path) {
+    struct statvfs fsInfo;
+    return statvfs(path.c_str(), &fsInfo) == 0;
+}
+
+bool createDevNode(const std::string& path, mode_t mode, int major_num, int minor_num) {
+    if (mknod(path.c_str(), mode, makedev(major_num, minor_num)) != 0) {
+        std::cerr << "Error creando " << path << ": " << strerror(errno) << "\n";
+        return false;
+    }
+    chmod(path.c_str(), mode);
+    return true;
+}
+
+void setupMinimalDev(const std::string& devPath) {
+    if (mount("none", devPath.c_str(), "tmpfs", 0, "mode=755") != 0) {
+        std::cerr << "Error montando tmpfs en " << devPath << ": " << strerror(errno) << "\n";
+        return;
+    }
+
+    std::vector<std::tuple<std::string, mode_t, int, int>> devNodes = {
+        {"/null",    S_IFCHR | 0666, 1, 3},
+        {"/zero",    S_IFCHR | 0666, 1, 5},
+        {"/random",  S_IFCHR | 0666, 1, 8},
+        {"/urandom", S_IFCHR | 0666, 1, 9},
+        {"/tty",     S_IFCHR | 0666, 5, 0}
+    };
+
+    for (const auto& [name, mode, major_num, minor_num] : devNodes) {
+        createDevNode(devPath + name, mode, major_num, minor_num);
+    }
+
+    std::string ptsPath = devPath + "/pts";
+    mkdir(ptsPath.c_str(), 0755);
+    if (mount("devpts", ptsPath.c_str(), "devpts", 0, nullptr) != 0) {
+        std::cerr << "Error montando devpts en " << ptsPath << ": " << strerror(errno) << "\n";
+    }
+}
+
+void cleanupDevFiles(const std::string& devPath) {
+    try {
+        if (!fs::exists(devPath)) {
+            //std::cerr << "Ruta no existe: " << devPath << std::endl;
+            return;
+        }
+
+        for (const auto& entry : fs::directory_iterator(devPath)) {
+            try {
+                fs::remove_all(entry);
+            } catch (const fs::filesystem_error& e) {
+                std::cerr << "Error al eliminar " << entry.path() << ": " << e.what() << std::endl;
+            }
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Error accediendo a la ruta " << devPath << ": " << e.what() << std::endl;
+    }
+}
+
+void teardownMinimalDev(const std::string& devPath) {
+    std::string ptsPath = devPath + "/pts";
+    if (fs::exists(ptsPath) && isMounted(ptsPath.c_str())) {
+        if (umount(ptsPath.c_str()) != 0) {
+            std::cerr << "Error unmounting " << ptsPath << ": " << strerror(errno) << std::endl;
+        } else {
+            std::cout << "[" << Colours::greenColour << "✔" << Colours::endColour << "] Unmounted: " << ptsPath << std::endl;
+        }
+    }
+
+    if (fs::exists(devPath) && isMounted(devPath.c_str())) {
+        if (umount(devPath.c_str()) != 0) {
+            std::cerr << "Error desmontando " << devPath << ": " << strerror(errno) << std::endl;
+        } else {
+            std::cout << "[" << Colours::greenColour << "✔" << Colours::endColour << "] Unmounted: " << devPath << std::endl;
+        }
+    }
+}
 
 struct Phrase {
     std::string part1;
@@ -83,11 +165,6 @@ void checkRoot() {
         std::cout << "\n" << Colours::redColour << "[*] You're not a fucking root" << Colours::endColour << std::endl;
         exit(0);
     }
-}
-
-bool isMounted(const std::string& path) {
-    struct statvfs fsInfo;
-    return statvfs(path.c_str(), &fsInfo) == 0;
 }
 
 unsigned long long getFilesystemID(const std::string& path) {
@@ -156,19 +233,27 @@ void checkMounts(const std::string& base_path) {
 }
 
 void mountFileSystem(const std::string& source, const std::string& target, const std::string& fs_type) {
-    int flags = MS_BIND | MS_REC;
+    int flags = 0;
 
-    if (mount(source.c_str(), target.c_str(), fs_type.c_str(), flags, nullptr) != 0) {
-        std::cerr << "Error mounting the file system: " << strerror(errno) << std::endl;
-        exit(EXIT_FAILURE);
+    if (fs_type == "bind") {
+        flags = MS_BIND | MS_REC;
+        if (mount(source.c_str(), target.c_str(), nullptr, flags, nullptr) != 0) {
+            std::cerr << "Error bind-mounting: " << strerror(errno) << "\n";
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        if (mount(source.c_str(), target.c_str(), fs_type.c_str(), flags, nullptr) != 0) {
+            std::cerr << "Error mounting fs_type " << fs_type << ": " << strerror(errno) << "\n";
+            exit(EXIT_FAILURE);
+        }
     }
 
-    // No Host
     if (mount(nullptr, target.c_str(), nullptr, MS_PRIVATE, nullptr) != 0) {
-        std::cerr << "Error converting mount to private: " << strerror(errno) << std::endl;
+        std::cerr << "Error setting mount to private: " << strerror(errno) << "\n";
         exit(EXIT_FAILURE);
     }
 }
+
 
 void mounting(const std::vector<MountData>& mount_list) {
     for (const auto& entry : mount_list) {
@@ -185,7 +270,7 @@ void mounting(const std::vector<MountData>& mount_list) {
 void unmountFileSystem(const std::string& target) {
     if (isMounted(target)) {
         if (umount2(target.c_str(), MNT_DETACH) != 0) {
-            std::cerr << "Error unmounting the file system: " << strerror(errno) << std::endl;
+            std::cerr << "Error unmounting " << target << ": " << strerror(errno) << std::endl;
         } else {
             std::cout << "[" << Colours::greenColour << "✔" << Colours::endColour << "] Unmounted: " << target << std::endl;
         }
@@ -193,6 +278,7 @@ void unmountFileSystem(const std::string& target) {
         std::cout << "Skip unmounting, not mounted: " << target << std::endl;
     }
 }
+
 
 std::string generateRandomVariation() {
     std::vector<std::string> variations = {
@@ -633,7 +719,6 @@ int main(int argc, char *argv[]) {
     printBanner(randomPhrase.part1, randomPhrase.part2);
 
     // EnvVariables
-    //setenv("PATH", "/sbin:/usr/bin:/usr/sbin:/system/bin:/system/xbin:$PATH", 1);
     setenv("PATH", "/sbin:/usr/bin:/usr/sbin:/bin:/system/bin:/system/xbin", 1);
     setenv("LD_LIBRARY_PATH", "/lib:/usr/lib", 1);
     setenv("USER", "root", 1);
@@ -688,11 +773,13 @@ int main(int argc, char *argv[]) {
                 std::string arch = argv[2];
 
                 return performInstall(arch);
+                return 1;
 
             } else {
                 std::string arch = archchecker();
                 std::cout << "[W] The host architecture is automatically detected.\nYou can specify one manually with: -d [architecture]\n";
                 return performInstall(arch);
+                return 1;
             }
         } else {
             std::cerr << "Unknown option: " << arg1 << std::endl;
@@ -704,14 +791,17 @@ int main(int argc, char *argv[]) {
         std::cout << ROOTFS_DIR << std::endl;
 
         std::vector<MountData> mount_list = {
-            {"/dev", ROOTFS_DIR + "/dev", ""},
-            {"/sys", ROOTFS_DIR + "/sys", ""},
-            {"/proc", ROOTFS_DIR + "/proc", ""},
+            //{"none", ROOTFS_DIR + "/dev", "devtmpfs"},
+            {"proc", ROOTFS_DIR + "/proc", "proc"},
+            //{"/sys", ROOTFS_DIR + "/sys", ""},
             };
 
         //check_and_add_hwmon_mounts(ROOTFS_DIR, mount_list); only termux
 
         mounting(mount_list);
+
+        std::string devRoot = ROOTFS_DIR + "/dev";
+        setupMinimalDev(devRoot);
 
         bool pivot_root_supported = check_pivot_root();
         bool unshare_supported = check_unshare();
@@ -721,6 +811,9 @@ int main(int argc, char *argv[]) {
         } else {
             chrootAndLaunchShellUnsecure(ROOTFS_DIR, mount_list);
         }
+
+        teardownMinimalDev(devRoot);
+        cleanupDevFiles(devRoot);
 
         //chrootAndLaunchShell(ROOTFS_DIR, mount_list);
     };
