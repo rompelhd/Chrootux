@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +44,7 @@ jobs:
           path: Chrootux-x86_64.zip
 
   build-arm64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -56,6 +56,12 @@ jobs:
                                   libcurl4-openssl-dev:arm64 \
                                   libncurses-dev:arm64 \
                                   libarchive-dev:arm64
+
+      - name: Check architecture and repos
+        run: |
+          dpkg --print-architecture
+          cat /etc/apt/sources.list
+          sudo apt-get update --fix-missing
 
       - name: Configure CMake for ARM64
         run: >
@@ -84,7 +90,7 @@ jobs:
           path: Chrootux-arm64.zip
 
   build-armhf:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -96,6 +102,12 @@ jobs:
                                   libcurl4-openssl-dev:armhf \
                                   libncurses-dev:armhf \
                                   libarchive-dev:armhf
+
+      - name: Check architecture and repos
+        run: |
+          dpkg --print-architecture
+          cat /etc/apt/sources.list
+          sudo apt-get update --fix-missing
 
       - name: Configure CMake for ARMHF
         run: >
