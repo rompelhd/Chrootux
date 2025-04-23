@@ -34,13 +34,25 @@ jobs:
       - name: Inspect binary
         run: file build-x86_64/Chrootux
 
+      - name: Upload x86_64 binary as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Chrootux-x86_64
+          path: build-x86_64/Chrootux
+
   build-arm64:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ARM64 cross-toolchain
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+      - name: Install ARM64 cross-toolchain and dependencies
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+                                  libcurl4-openssl-dev:arm64 \
+                                  libncurses-dev:arm64 \
+                                  libarchive-dev:arm64
 
       - name: Configure CMake for ARM64
         run: >
@@ -59,13 +71,25 @@ jobs:
       - name: Inspect binary
         run: file build-arm64/Chrootux
 
+      - name: Upload ARM64 binary as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Chrootux-arm64
+          path: build-arm64/Chrootux
+
   build-armhf:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ARMHF cross-toolchain
-        run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+      - name: Install ARMHF cross-toolchain and dependencies
+        run: |
+          sudo dpkg --add-architecture armhf
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
+                                  libcurl4-openssl-dev:armhf \
+                                  libncurses-dev:armhf \
+                                  libarchive-dev:armhf
 
       - name: Configure CMake for ARMHF
         run: >
@@ -83,3 +107,9 @@ jobs:
 
       - name: Inspect binary
         run: file build-armhf/Chrootux
+
+      - name: Upload ARMHF binary as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Chrootux-armhf
+          path: build-armhf/Chrootux
