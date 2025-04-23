@@ -36,7 +36,7 @@ jobs:
         run: zip -j Chrootux-x86_64.zip build-x86_64/Chrootux
 
       - name: Upload x86_64 binary as artifact (ZIP)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Chrootux-x86_64
           path: Chrootux-x86_64.zip
@@ -76,7 +76,7 @@ jobs:
         run: zip -j Chrootux-arm64.zip build-arm64/Chrootux
 
       - name: Upload ARM64 binary as artifact (ZIP)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Chrootux-arm64
           path: Chrootux-arm64.zip
@@ -116,7 +116,7 @@ jobs:
         run: zip -j Chrootux-armhf.zip build-armhf/Chrootux
 
       - name: Upload ARMHF binary as artifact (ZIP)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Chrootux-armhf
           path: Chrootux-armhf.zip
