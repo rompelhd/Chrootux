@@ -1,6 +1,6 @@
 # .github/workflows/cmake-multi-platform.yml
 
-name: CMake on multiple platforms
+name: CMake on ubuntu x86_64
 
 on:
   push:
@@ -15,13 +15,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
         build_type: [Release]
         c_compiler: [gcc, clang, cl]
         include:
-          - os: windows-latest
-            c_compiler: cl
-            cpp_compiler: cl
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
@@ -29,10 +26,6 @@ jobs:
             c_compiler: clang
             cpp_compiler: clang++
         exclude:
-          - os: windows-latest
-            c_compiler: gcc
-          - os: windows-latest
-            c_compiler: clang
           - os: ubuntu-latest
             c_compiler: cl
 
