@@ -46,6 +46,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fix repository mirrors
+        run: |
+          sudo sed -i 's/http:\/\/azure.archive.ubuntu.com/http:\/\/archive.ubuntu.com/g' /etc/apt/sources.list
+
+      - name: Update package lists
+        run: sudo apt-get update --fix-missing
+
       - name: Install ARM64 cross-toolchain and dependencies
         run: |
           sudo dpkg --add-architecture arm64
@@ -85,6 +92,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Fix repository mirrors
+        run: |
+          sudo sed -i 's/http:\/\/azure.archive.ubuntu.com/http:\/\/archive.ubuntu.com/g' /etc/apt/sources.list
+
+      - name: Update package lists
+        run: sudo apt-get update --fix-missing
 
       - name: Install ARMHF cross-toolchain and dependencies
         run: |
