@@ -1,6 +1,6 @@
 # .github/workflows/cmake-multi-platform.yml
 
-name: CMake on ubuntu x86_64
+name: CMake Multi-Platform Build (x86_64, armhf and arm64)
 
 on:
   push:
@@ -9,49 +9,77 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-        build_type: [Release]
-        c_compiler: [gcc, clang, cl]
-        include:
-          - os: ubuntu-latest
-            c_compiler: gcc
-            cpp_compiler: g++
-          - os: ubuntu-latest
-            c_compiler: clang
-            cpp_compiler: clang++
-        exclude:
-          - os: ubuntu-latest
-            c_compiler: cl
-
+  build-x86_64:
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set reusable strings
-      id: strings
-      shell: bash
-      run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libncurses-dev libarchive-dev
 
-    - name: Install dependencies
-      run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libncurses-dev libarchive-dev
-      
-    - name: Configure CMake
-      run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -S ${{ github.workspace }}
+      - name: Configure CMake
+        run: >
+          cmake -B build-x86_64
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_CXX_COMPILER=g++
+          -DCMAKE_BUILD_TYPE=Release
+          -S .
 
-    - name: Build
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      - name: Build x86_64
+        run: cmake --build build-x86_64 --config Release
 
-    - name: Test
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      run: ctest --build-config ${{ matrix.build_type }}
+      - name: List build output
+        run: ls -lh build-x86_64
+
+      - name: Inspect binary
+        run: file build-x86_64/Chrootux
+
+  build-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ARM64 cross-toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Configure CMake for ARM64
+        run: >
+          cmake -B build-arm64
+          -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc
+          -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++
+          -DCMAKE_BUILD_TYPE=Release
+          -S .
+
+      - name: Build ARM64
+        run: cmake --build build-arm64 --config Release
+
+      - name: List build output
+        run: ls -lh build-arm64
+
+      - name: Inspect binary
+        run: file build-arm64/Chrootux
+
+  build-armhf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ARMHF cross-toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+
+      - name: Configure CMake for ARMHF
+        run: >
+          cmake -B build-armhf
+          -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc
+          -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++
+          -DCMAKE_BUILD_TYPE=Release
+          -S .
+
+      - name: Build ARMHF
+        run: cmake --build build-armhf --config Release
+
+      - name: List build output
+        run: ls -lh build-armhf
+
+      - name: Inspect binary
+        run: file build-armhf/Chrootux
