@@ -45,6 +45,9 @@ jobs:
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libncurses-dev libarchive-dev
+      
     - name: Configure CMake
       run: >
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
