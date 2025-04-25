@@ -31,19 +31,22 @@ jobs:
           case "${{ matrix.platform }}" in
             arm64)
               ARCH="aarch64"
+              PLATFORM="linux/arm64"
               ;;
             armhf)
               ARCH="armv7"
+              PLATFORM="linux/arm/v7"
               ;;
             x86_64)
               ARCH="x86_64"
+              PLATFORM="linux/amd64"
               ;;
           esac
 
           docker run --rm --privileged \
             -v ${{ github.workspace }}:/src \
-            --platform=linux/${{ matrix.platform }} \
-            multiarch/ubuntu-debootstrap:${{ matrix.platform }}-jammy \
+            --platform=${PLATFORM} \
+            multiarch/ubuntu-debootstrap:${ARCH}-jammy \
             /bin/bash -c "
               apt-get update &&
               apt-get install -y build-essential cmake gcc g++ zip file \
