@@ -1,6 +1,6 @@
 # .github/workflows/cmake-multi-platform.yml
 
-name: CMake Multi-Platform Build (x86_64, armhf and arm64)
+name: CMake Multi-Platform Build (x86_64, armhf and arm64 via QEMU)
 
 on:
   push:
@@ -10,108 +10,53 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
+
     strategy:
       matrix:
         platform: [x86_64, arm64, armhf]
-        include:
-          - platform: x86_64
-            runner: ubuntu-22.04
-          - platform: arm64
-            runner: ubuntu-22.04-arm64
-          - platform: armhf
-            runner: ubuntu-22.04-armhf
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          if [ "${{ matrix.platform }}" == "arm64" ]; then
-            sudo dpkg --add-architecture arm64
-            sudo apt-get update
-            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-                                    libcurl4-openssl-dev:arm64 \
-                                    libncurses-dev:arm64 \
-                                    libarchive-dev:arm64
-          elif [ "${{ matrix.platform }}" == "armhf" ]; then
-            sudo dpkg --add-architecture armhf
-            sudo apt-get update
-            sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
-                                    libcurl4-openssl-dev:armhf \
-                                    libncurses-dev:armhf \
-                                    libarchive-dev:armhf
-          else
-            sudo apt-get update
-            sudo apt-get install -y libcurl4-openssl-dev libncurses-dev libarchive-dev
-          fi
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      - name: Configure CMake
-        run: |
-          if [ "${{ matrix.platform }}" == "arm64" ]; then
-            cmake -B build-arm64 \
-                  -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-                  -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -S .
-          elif [ "${{ matrix.platform }}" == "armhf" ]; then
-            cmake -B build-armhf \
-                  -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
-                  -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -S .
-          else
-            cmake -B build-x86_64 \
-                  -DCMAKE_C_COMPILER=gcc \
-                  -DCMAKE_CXX_COMPILER=g++ \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -S .
-          fi
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build ${matrix.platform}
+      - name: Run CMake Build in Docker (cross-compilation)
         run: |
-          if [ "${{ matrix.platform }}" == "arm64" ]; then
-            cmake --build build-arm64 --config Release
-          elif [ "${{ matrix.platform }}" == "armhf" ]; then
-            cmake --build build-armhf --config Release
-          else
-            cmake --build build-x86_64 --config Release
-          fi
+          case "${{ matrix.platform }}" in
+            arm64)
+              ARCH="aarch64"
+              ;;
+            armhf)
+              ARCH="armv7"
+              ;;
+            x86_64)
+              ARCH="x86_64"
+              ;;
+          esac
 
-      - name: List build output
-        run: |
-          if [ "${{ matrix.platform }}" == "arm64" ]; then
-            ls -lh build-arm64
-          elif [ "${{ matrix.platform }}" == "armhf" ]; then
-            ls -lh build-armhf
-          else
-            ls -lh build-x86_64
-          fi
-
-      - name: Inspect binary
-        run: |
-          if [ "${{ matrix.platform }}" == "arm64" ]; then
-            file build-arm64/Chrootux
-          elif [ "${{ matrix.platform }}" == "armhf" ]; then
-            file build-armhf/Chrootux
-          else
-            file build-x86_64/Chrootux
-          fi
-
-      - name: Compress binary
-        run: |
-          if [ "${{ matrix.platform }}" == "arm64" ]; then
-            zip -j Chrootux-arm64.zip build-arm64/Chrootux
-          elif [ "${{ matrix.platform }}" == "armhf" ]; then
-            zip -j Chrootux-armhf.zip build-armhf/Chrootux
-          else
-            zip -j Chrootux-x86_64.zip build-x86_64/Chrootux
-          fi
+          docker run --rm --privileged \
+            -v ${{ github.workspace }}:/src \
+            --platform=linux/${{ matrix.platform }} \
+            multiarch/ubuntu-debootstrap:${{ matrix.platform }}-jammy \
+            /bin/bash -c "
+              apt-get update &&
+              apt-get install -y build-essential cmake gcc g++ zip file \
+                                 libcurl4-openssl-dev libncurses-dev libarchive-dev &&
+              mkdir -p /src/build-${{ matrix.platform }} &&
+              cd /src/build-${{ matrix.platform }} &&
+              cmake -DCMAKE_BUILD_TYPE=Release .. &&
+              cmake --build . --config Release &&
+              zip -j /src/Chrootux-${{ matrix.platform }}.zip Chrootux
+            "
 
       - name: Upload binary as artifact (ZIP)
         uses: actions/upload-artifact@v4
         with:
           name: Chrootux-${{ matrix.platform }}
-          path: |
-            Chrootux-${{ matrix.platform }}.zip
+          path: Chrootux-${{ matrix.platform }}.zip
