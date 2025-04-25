@@ -1,6 +1,6 @@
 # .github/workflows/cmake-multi-platform.yml
 
-name: CMake Multi-Platform Build (x86_64, armhf and arm64 via QEMU)
+name: CMake Multi-Platform Build (x86_64, armhf, arm64)
 
 on:
   push:
@@ -20,45 +20,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Run CMake Build in Docker (cross-compilation)
+      - name: Install dependencies for cross-compilation
         run: |
-          case "${{ matrix.platform }}" in
-            arm64)
-              ARCH="aarch64"
-              PLATFORM="linux/arm64"
-              ;;
-            armhf)
-              ARCH="armv7"
-              PLATFORM="linux/arm/v7"
-              ;;
-            x86_64)
-              ARCH="x86_64"
-              PLATFORM="linux/amd64"
-              ;;
-          esac
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            build-essential \
+            gcc g++ \
+            libcurl4-openssl-dev \
+            libncurses-dev \
+            libarchive-dev \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
 
-          docker run --rm --privileged \
-            -v ${{ github.workspace }}:/src \
-            --platform=${PLATFORM} \
-            multiarch/ubuntu-debootstrap:${ARCH}-jammy \
-            /bin/bash -c "
-              apt-get update &&
-              apt-get install -y build-essential cmake gcc g++ zip file \
-                                 libcurl4-openssl-dev libncurses-dev libarchive-dev &&
-              mkdir -p /src/build-${{ matrix.platform }} &&
-              cd /src/build-${{ matrix.platform }} &&
-              cmake -DCMAKE_BUILD_TYPE=Release .. &&
-              cmake --build . --config Release &&
-              zip -j /src/Chrootux-${{ matrix.platform }}.zip Chrootux
-            "
+      - name: Configure and build for ${{ matrix.platform }}
+        run: |
+          if [ "${{ matrix.platform }}" == "arm64" ]; then
+            TOOLCHAIN_FILE="toolchains/arm64-toolchain.cmake"
+            PLATFORM="aarch64-linux-gnu"
+          elif [ "${{ matrix.platform }}" == "armhf" ]; then
+            TOOLCHAIN_FILE="toolchains/armhf-toolchain.cmake"
+            PLATFORM="arm-linux-gnueabihf"
+          else
+            TOOLCHAIN_FILE="toolchains/x86_64-toolchain.cmake"
+            PLATFORM="x86_64-linux-gnu"
+          fi
 
-      - name: Upload binary as artifact (ZIP)
+          mkdir -p build/${{ matrix.platform }}
+          cd build/${{ matrix.platform }}
+          cmake -DCMAKE_TOOLCHAIN_FILE=../../${TOOLCHAIN_FILE} -DCMAKE_BUILD_TYPE=Release ..
+          cmake --build . --config Release
+
+      - name: List build output
+        run: |
+          ls -lh build/${{ matrix.platform }}
+
+      - name: Compress and upload binary as artifact (ZIP)
+        run: |
+          zip -j Chrootux-${{ matrix.platform }}.zip build/${{ matrix.platform }}/Chrootux
         uses: actions/upload-artifact@v4
         with:
           name: Chrootux-${{ matrix.platform }}
