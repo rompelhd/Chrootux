@@ -41,20 +41,26 @@ jobs:
           if [ "${{ matrix.platform }}" == "arm64" ]; then
             cmake -DCMAKE_C_COMPILER=/usr/bin/aarch64-linux-gnu-gcc \
                   -DCMAKE_CXX_COMPILER=/usr/bin/aarch64-linux-gnu-g++ \
-                  -DCMAKE_BUILD_TYPE=Release ..
+                  -DCMAKE_BUILD_TYPE=Release -S ../../ -B .
           elif [ "${{ matrix.platform }}" == "armhf" ]; then
             cmake -DCMAKE_C_COMPILER=/usr/bin/arm-linux-gnueabihf-gcc \
                   -DCMAKE_CXX_COMPILER=/usr/bin/arm-linux-gnueabihf-g++ \
-                  -DCMAKE_BUILD_TYPE=Release ..
+                  -DCMAKE_BUILD_TYPE=Release -S ../../ -B .
           else
-            cmake -DCMAKE_BUILD_TYPE=Release ..
+            cmake -DCMAKE_BUILD_TYPE=Release -S ../../ -B .
           fi
 
           cmake --build . --config Release
 
-      - name: List build output
+      - name: Verify binary existence
         run: |
-          ls -lh build/${{ matrix.platform }}
+          if [ ! -f build/${{ matrix.platform }}/Chrootux ]; then
+            echo "Error: Binary Chrootux not found!"
+            exit 1
+          fi
+
+      - name: Fix binary permissions
+        run: chmod +x build/${{ matrix.platform }}/Chrootux
 
       - name: Compress binary
         run: |
