@@ -20,44 +20,47 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies for cross-compilation
+      - name: Install cross-compilation toolchains
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            build-essential \
-            gcc g++ \
-            libcurl4-openssl-dev \
-            libncurses-dev \
-            libarchive-dev \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+          sudo apt-get install -y cmake build-essential \
+            gcc g++ libcurl4-openssl-dev libncurses-dev \
+            libarchive-dev zip
+          
+          if [ "${{ matrix.platform }}" == "arm64" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          elif [ "${{ matrix.platform }}" == "armhf" ]; then
+            sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+          fi
 
       - name: Configure and build for ${{ matrix.platform }}
         run: |
-          if [ "${{ matrix.platform }}" == "arm64" ]; then
-            TOOLCHAIN_FILE="toolchains/arm64-toolchain.cmake"
-            PLATFORM="aarch64-linux-gnu"
-          elif [ "${{ matrix.platform }}" == "armhf" ]; then
-            TOOLCHAIN_FILE="toolchains/armhf-toolchain.cmake"
-            PLATFORM="arm-linux-gnueabihf"
-          else
-            TOOLCHAIN_FILE="toolchains/x86_64-toolchain.cmake"
-            PLATFORM="x86_64-linux-gnu"
-          fi
-
           mkdir -p build/${{ matrix.platform }}
           cd build/${{ matrix.platform }}
-          cmake -DCMAKE_TOOLCHAIN_FILE=../../${TOOLCHAIN_FILE} -DCMAKE_BUILD_TYPE=Release ..
+
+          if [ "${{ matrix.platform }}" == "arm64" ]; then
+            cmake -DCMAKE_C_COMPILER=/usr/bin/aarch64-linux-gnu-gcc \
+                  -DCMAKE_CXX_COMPILER=/usr/bin/aarch64-linux-gnu-g++ \
+                  -DCMAKE_BUILD_TYPE=Release ..
+          elif [ "${{ matrix.platform }}" == "armhf" ]; then
+            cmake -DCMAKE_C_COMPILER=/usr/bin/arm-linux-gnueabihf-gcc \
+                  -DCMAKE_CXX_COMPILER=/usr/bin/arm-linux-gnueabihf-g++ \
+                  -DCMAKE_BUILD_TYPE=Release ..
+          else
+            cmake -DCMAKE_BUILD_TYPE=Release ..
+          fi
+
           cmake --build . --config Release
 
       - name: List build output
         run: |
           ls -lh build/${{ matrix.platform }}
 
-      - name: Compress and upload binary as artifact (ZIP)
+      - name: Compress binary
         run: |
           zip -j Chrootux-${{ matrix.platform }}.zip build/${{ matrix.platform }}/Chrootux
+
+      - name: Upload binary as artifact
         uses: actions/upload-artifact@v4
         with:
           name: Chrootux-${{ matrix.platform }}
