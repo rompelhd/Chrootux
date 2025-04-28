@@ -1,30 +1,25 @@
 #include <sys/wait.h>
 #include <string>
-#include <sys/statvfs.h>
 #include <iostream>
-#include <cstdlib>
 #include <unistd.h> // For fork(), exec(), chroot()
 #include <vector>
 #include <sys/stat.h> // For mkdir()
 #include <fstream>
-#include <sys/mount.h> // For mount(), unmount()
 #include <random>
-#include <chrono>
 #include <algorithm>
 #include <string>
-#include <thread>
 #include <dirent.h>
 #include <filesystem>
-#include <unordered_set>
+
+#include <thread>
+#include <sys/mount.h> // For mount(), unmount()
+
 #include <cstring>
 
 #include "../include/basic.hpp"
 #include "../include/install.hpp"
 #include "../include/snow-effect.hpp"
 
-#include <sys/types.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <cerrno>
 #include <sys/sysmacros.h>
 
@@ -39,11 +34,6 @@
 namespace fs = std::filesystem;
 
 std::string ROOTFS_DIR;
-
-bool isMounted(const std::string& path) {
-    struct statvfs fsInfo;
-    return statvfs(path.c_str(), &fsInfo) == 0;
-}
 
 bool createDevNode(const std::string& path, mode_t mode, int major_num, int minor_num) {
     if (mknod(path.c_str(), mode, makedev(major_num, minor_num)) != 0) {
@@ -155,6 +145,7 @@ void usage() {
               << "  -h HELP               Show this help\n"
               << "  -d [ARCH]             Open menu to download distros\n"
               << "                        If ARCH is provided, list distros for that architecture\n\n"
+              << "  -ka                   Kill all: Unmount everything and terminate all chrootux processes.\n"
               << "Warning, use of this script is at your own risk.\n"
               << "I am not responsible for your wrongdoings.\n"
               << Colours::endColour << std::endl;
@@ -164,71 +155,6 @@ void checkRoot() {
     if (geteuid() != 0) {
         std::cout << "\n" << Colours::redColour << "[*] You're not a fucking root" << Colours::endColour << std::endl;
         exit(0);
-    }
-}
-
-unsigned long long getFilesystemID(const std::string& path) {
-    struct statvfs fsInfo;
-    if (statvfs(path.c_str(), &fsInfo) != 0) {
-        perror("statvfs failed");
-        return 0;
-    }
-    return fsInfo.f_fsid;
-}
-
-
-std::string extractDirectoryBefore(const std::string& path, const std::vector<std::string>& targets) {
-    for (const auto& target : targets) {
-        size_t pos = path.find(target);
-        if (pos != std::string::npos) {
-            size_t lastSlash = path.rfind('/', pos - 1);
-            if (lastSlash != std::string::npos) {
-                return path.substr(lastSlash + 1, pos - lastSlash - 1);
-            }
-        }
-    }
-    return "";
-}
-
-
-bool checkTargetsMounted(const std::string& base_path, const std::string& dir) {
-    std::ifstream mounts("/proc/mounts");
-    std::string line;
-    std::unordered_set<std::string> targets_found;
-
-    std::vector<std::string> targets = {"/proc", "/dev", "/sys"};
-
-    while (std::getline(mounts, line)) {
-        if (line.find(base_path + "/" + dir) != std::string::npos) {
-            for (const auto& target : targets) {
-                if (line.find(target) != std::string::npos) {
-                    targets_found.insert(target);
-                }
-            }
-        }
-    }
-
-    return targets_found.size() == 3;
-}
-
-void checkMounts(const std::string& base_path) {
-    std::ifstream mounts("/proc/mounts");
-    std::string line;
-    std::vector<std::string> targets = {"/proc", "/dev", "/sys"};
-    std::unordered_set<std::string> checked_dirs;
-
-    while (std::getline(mounts, line)) {
-        if (line.find(base_path) != std::string::npos) {
-            std::string mount_point = line.substr(line.find(base_path));
-            std::string dir = extractDirectoryBefore(mount_point, targets);
-
-            if (!dir.empty() && checked_dirs.find(dir) == checked_dirs.end()) {
-                if (checkTargetsMounted(base_path, dir)) {
-                    std::cout << "It was already mounted /proc /dev /sys towards: " << dir << "\n" << std::endl;
-                }
-                checked_dirs.insert(dir);
-            }
-        }
     }
 }
 
@@ -731,23 +657,7 @@ int main(int argc, char *argv[]) {
     setenv("LANGUAGE", "C", 1);
     setenv("LANG", "C", 1);
 
-    const char* home_dir = std::getenv("HOME");
-    if (home_dir != nullptr) {
-        std::string machines_folder = createMachinesFolderIfNotExists(home_dir);
-        if (machines_folder.empty()) {
-            std::cerr << "Error: creating or getting the 'machines' folder." << std::endl;
-            return 1;
-        }
-
-        unsigned long long rootFsid = getFilesystemID(machines_folder);
-        if (rootFsid != 0) {
-            checkMounts(machines_folder);
-        } else {
-            std::cerr << "It was not possible to obtain information on the assemblies for " << machines_folder << std::endl;
-        }
-    } else {
-        std::cerr << "The location of the home folder could not be obtained." << std::endl;
-    }
+    checkMachinesFolder();
 
     if (argc > 1) {
         std::string arg1 = argv[1];
@@ -765,8 +675,9 @@ int main(int argc, char *argv[]) {
             bool debugMode = true;
             (void)debugMode;
             std::cout << "Debug mode enabled." << std::endl;
-        } else if (arg1 == "-k" || arg1 == "--kill") {
+        } else if (arg1 == "-ka" || arg1 == "--killall") {
             std::cout << "Terminating chroot sessions and unmounting systems..." << std::endl;
+            UnmountAll(machines_folder);
             return 0;
         } else if (arg1 == "-d") {
             if (argc > 2) {
