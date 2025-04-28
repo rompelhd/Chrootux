@@ -14,11 +14,66 @@
 #include <set>
 #include <cstring>
 
+#include <sys/statvfs.h>
+
+#include <sys/mount.h>
+#include <unordered_set>
+#include <signal.h>
+#include <dirent.h>
+
+namespace fs = std::filesystem;
 
 int getTerminalWidth() {
     winsize w;
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
     return w.ws_col;
+}
+
+unsigned long long getFilesystemID(const std::string& path) {
+    struct statvfs fsInfo;
+    if (statvfs(path.c_str(), &fsInfo) != 0) {
+        perror("statvfs failed");
+        return 0;
+    }
+    return fsInfo.f_fsid;
+}
+
+bool checkTargetsMounted(const std::string& base_path, const std::string& dir) {
+    std::ifstream mounts("/proc/mounts");
+    std::string line;
+    std::unordered_set<std::string> targets_found;
+
+    std::vector<std::string> targets = {"/proc", "/dev", "/sys"};
+
+    while (std::getline(mounts, line)) {
+        if (line.find(base_path + "/" + dir) != std::string::npos) {
+            for (const auto& target : targets) {
+                if (line.find(target) != std::string::npos) {
+                    targets_found.insert(target);
+                }
+            }
+        }
+    }
+
+    return targets_found.size() == 3;
+}
+
+bool isMounted(const std::string& path) {
+    struct statvfs fsInfo;
+    return statvfs(path.c_str(), &fsInfo) == 0;
+}
+
+std::string extractDirectoryBefore(const std::string& path, const std::vector<std::string>& targets) {
+    for (const auto& target : targets) {
+        size_t pos = path.find(target);
+        if (pos != std::string::npos) {
+            size_t lastSlash = path.rfind('/', pos - 1);
+            if (lastSlash != std::string::npos) {
+                return path.substr(lastSlash + 1, pos - lastSlash - 1);
+            }
+        }
+    }
+    return "";
 }
 
 void hightable(int totalWidth) {
@@ -153,20 +208,20 @@ std::string createMachinesFolderIfNotExists(const std::string& home_dir) {
 
     struct stat info;
     if (stat(machines_folder.c_str(), &info) == 0 && S_ISDIR(info.st_mode)) {
-        printDebugMessage("La carpeta 'machines' ya existe en: " + machines_folder);
+        printDebugMessage("The folder 'machines' already exists in: " + machines_folder);
         return machines_folder;
     }
 
     if (!machines_folder.empty()) {
         if (mkdir(machines_folder.c_str(), 0755) == 0) {
-            std::cout << "Se ha creado la carpeta 'machines' en: " << machines_folder << std::endl;
+            std::cout << "The following folder has been created 'machines' in: " << machines_folder << std::endl;
             return machines_folder;
         } else {
-            std::cerr << "Error al crear la carpeta 'machines' en: " << machines_folder << std::endl;
+            std::cerr << "Error creating folder 'machines' in: " << machines_folder << std::endl;
             return "";
         }
     } else {
-        std::cerr << "No se pudo obtener la ruta de la carpeta 'machines'." << std::endl;
+        std::cerr << "The path to the folder could not be obtained 'machines'." << std::endl;
         return "";
     }
 }
@@ -180,7 +235,7 @@ std::vector<std::string> getDirectories(const std::string& folderPath) {
             }
         }
     } catch (const std::filesystem::filesystem_error& e) {
-        std::cerr << "Error al leer el directorio: " << e.what() << std::endl;
+        std::cerr << "Error reading directory: " << e.what() << std::endl;
     }
     return directories;
 }
@@ -278,7 +333,7 @@ bool readElfHeader(const std::string& filename, ElfHeader& header) {
     file.read(reinterpret_cast<char*>(&header.ident), sizeof(header.ident));
 
     if (header.ident[0] != 0x7F || header.ident[1] != 'E' || header.ident[2] != 'L' || header.ident[3] != 'F') {
-        std::cerr << "Error: No es un archivo ELF válido: " << filename << std::endl;
+        std::cerr << "Error: Not a valid ELF file: " << filename << std::endl;
         return false;
     }
 
@@ -387,4 +442,177 @@ void machinesOn() {
                   << std::setw(30) << emulation << std::endl;
     }
     std::cout << "\n" << std::endl;
+}
+
+void checkMounts(const std::string& base_path) {
+    std::ifstream mounts("/proc/mounts");
+    std::string line;
+    std::vector<std::string> targets = {"/proc", "/dev", "/sys"};
+    std::unordered_set<std::string> checked_dirs;
+
+    while (std::getline(mounts, line)) {
+        if (line.find(base_path) != std::string::npos) {
+            std::string mount_point = line.substr(line.find(base_path));
+            std::string dir = extractDirectoryBefore(mount_point, targets);
+
+            if (!dir.empty() && checked_dirs.find(dir) == checked_dirs.end()) {
+                if (checkTargetsMounted(base_path, dir)) {
+                    std::cout << "It was already mounted /proc /dev /sys towards: " << dir << "\n" << std::endl;
+                }
+                checked_dirs.insert(dir);
+            }
+        }
+    }
+}
+
+bool isMtedAM(const std::string& machines_folder) {
+    std::ifstream mounts("/proc/mounts");
+    if (!mounts.is_open()) {
+        return false;
+    }
+
+    std::string line;
+    while (std::getline(mounts, line)) {
+        if (line.find(machines_folder) != std::string::npos) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void checkMachinesFolder() {
+    const char* home_dir = std::getenv("HOME");
+        if (home_dir != nullptr) {
+            std::string machines_folder = createMachinesFolderIfNotExists(home_dir);
+            if (machines_folder.empty()) {
+                std::cerr << "Error: creating or getting the 'machines' folder." << std::endl;
+            }
+
+            unsigned long long rootFsid = getFilesystemID(machines_folder);
+            if (rootFsid != 0) {
+                checkMounts(machines_folder);
+            } else {
+                std::cerr << "It was not possible to obtain information on the assemblies for " << machines_folder << std::endl;
+            }
+        } else {
+            std::cerr << "The location of the home folder could not be obtained." << std::endl;
+        }
+    }
+
+void killChrootProcesses(const std::string& chroot_path) {
+    DIR* dir = opendir("/proc");
+    if (!dir) {
+        std::cerr << "Error opening /proc: " << strerror(errno) << std::endl;
+        return;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        if (entry->d_type != DT_DIR || !isdigit(entry->d_name[0])) {
+            continue;
+        }
+
+        std::string pid = entry->d_name;
+        std::string cmdline_path = "/proc/" + pid + "/cmdline";
+
+        std::ifstream cmdline_file(cmdline_path);
+        if (cmdline_file) {
+            std::string cmdline;
+            std::getline(cmdline_file, cmdline);
+
+            if (cmdline.find(chroot_path) != std::string::npos) {
+                std::cout << "Process found: " << pid << " - " << cmdline << std::endl;
+
+                if (kill(std::stoi(pid), SIGKILL) == 0) {
+                    std::cout << "Process " << pid << " killed correctly.." << std::endl;
+                } else {
+                    std::cerr << "Error killing the process " << pid << ": " << strerror(errno) << std::endl;
+                }
+            }
+        }
+    }
+
+    closedir(dir);
+}
+
+void killChrootuxProcesses() {
+    DIR* dir = opendir("/proc");
+    struct dirent* entry;
+
+    if (dir == nullptr) {
+        std::cerr << "Error opening /proc: " << strerror(errno) << std::endl;
+        return;
+    }
+
+    std::vector<pid_t> pids_to_kill;
+
+    while ((entry = readdir(dir)) != nullptr) {
+        if (entry->d_type == DT_DIR && isdigit(entry->d_name[0])) {
+            std::string pid_str(entry->d_name);
+            std::string cmdline_file = "/proc/" + pid_str + "/cmdline";
+            FILE* cmd_file = fopen(cmdline_file.c_str(), "r");
+
+            if (cmd_file) {
+                char cmdline[1024];
+                if (fgets(cmdline, sizeof(cmdline), cmd_file)) {
+                    if (std::string(cmdline).find("Chrootux") != std::string::npos) {
+                        pid_t pid = std::stoi(pid_str);
+                        pids_to_kill.push_back(pid);
+                    }
+                }
+                fclose(cmd_file);
+            }
+        }
+    }
+
+    closedir(dir);
+
+    for (pid_t pid : pids_to_kill) {
+        std::cout << "Killing process with PID: " << pid << std::endl;
+        if (kill(pid, SIGKILL) == 0) {
+            std::cout << "Process " << pid << " killed." << std::endl;
+        } else {
+            std::cerr << "Error killing the process " << pid << ": " << strerror(errno) << std::endl;
+        }
+    }
+}
+
+void UnmountAll(const std::string& machines_folder) {
+    try {
+        killChrootProcesses(machines_folder);
+        bool stillMounted = isMtedAM(machines_folder);
+
+        while (stillMounted) {
+            for (const auto& entry : fs::directory_iterator(machines_folder)) {
+                if (entry.is_directory()) {
+                    std::string path = entry.path().string();
+                    std::cout << "Forcing disassembly of: " << path << std::endl;
+
+                    int result = umount2(path.c_str(), MNT_DETACH);
+                    if (result != 0) {
+                        std::cerr << "Error forcing disassembly of " << path
+                                  << ": " << strerror(errno) << std::endl;
+                    } else {
+                        std::cout << "Successful disassembly of: " << path << std::endl;
+                    }
+
+                    for (const auto& subentry : fs::directory_iterator(path)) {
+                        if (subentry.is_directory()) {
+                            std::string subpath = subentry.path().string();
+                            std::cout << "Disassembling subdirectory: " << subpath << std::endl;
+                            umount2(subpath.c_str(), MNT_DETACH);
+                        }
+                    }
+                }
+            }
+
+            stillMounted = isMtedAM(machines_folder);
+        }
+
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
+
+    killChrootuxProcesses();
 }
