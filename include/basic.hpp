@@ -54,4 +54,20 @@ extern std::string archost;
 
 std::string archchecker();
 
+std::string extractDirectoryBefore(const std::string& path, const std::vector<std::string>& targets);
+
+bool checkTargetsMounted(const std::string& base_path, const std::string& dir);
+
+unsigned long long getFilesystemID(const std::string& path);
+
+void checkMounts(const std::string& base_path);
+
+void checkMachinesFolder();
+
+bool isMtedAM(const std::string& machines_folder);
+
+void UnmountAll(const std::string& machines_folder);
+
+bool isMounted(const std::string& path);
+
 #endif /* BASIC_HPP */
