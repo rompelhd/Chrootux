@@ -1,7 +1,7 @@
 #include <sys/wait.h>
 #include <string>
 #include <iostream>
-#include <unistd.h> // For fork(), exec(), chroot()
+#include <unistd.h> // For fork(), exec(), chroot(), open(), close()
 #include <vector>
 #include <sys/stat.h> // For mkdir()
 #include <fstream>
@@ -10,6 +10,7 @@
 #include <string>
 #include <dirent.h>
 #include <filesystem>
+#include <fcntl.h>     // For O_WRONLY and other flags the open()
 
 #include <thread>
 #include <sys/mount.h> // For mount(), unmount()
