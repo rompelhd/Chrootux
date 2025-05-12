@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <string>
+#include <chrono>
+#include <curl/curl.h>
 
 namespace Colours {
     const std::string greenColour = "\033[1;32m";
@@ -69,5 +71,20 @@ bool isMtedAM(const std::string& machines_folder);
 void UnmountAll(const std::string& machines_folder);
 
 bool isMounted(const std::string& path);
+
+
+int progressCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t, curl_off_t);
+
+int setupChrootuxConfig();
+
+bool createDirectory(const std::string &path);
+
+bool downloadFile(const std::string &url, const std::string &outputFile);
+
+struct ProgressData {
+    double lastTime;
+    double totalSize;
+    double downloaded;
+};
 
 #endif /* BASIC_HPP */
