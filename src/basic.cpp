@@ -143,7 +143,7 @@ int setupChrootuxConfig() {
             return -2;
         }
     } else {
-        std::cout << "El archivo local.conf ya existe." << std::endl;
+        
     }
 
     return 1;
