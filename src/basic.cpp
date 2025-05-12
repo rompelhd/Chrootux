@@ -14,6 +14,10 @@
 #include <set>
 #include <cstring>
 
+#include <curl/curl.h>
+
+#include <chrono>
+
 #include <sys/statvfs.h>
 
 #include <sys/mount.h>
@@ -22,6 +26,128 @@
 #include <dirent.h>
 
 namespace fs = std::filesystem;
+
+bool downloadFile(const std::string& url, const std::string& filename) {
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        std::cerr << "Error initializing libcurl." << std::endl;
+        return false;
+    }
+
+    FILE* fp = fopen(filename.c_str(), "wb");
+    if (!fp) {
+        std::cerr << "Error opening the output file." << std::endl;
+        curl_easy_cleanup(curl);
+        return false;
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+
+    ProgressData progressData = {0.0, 0.0, 0.0};
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progressCallback);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &progressData);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        std::cerr << "Error downloading file: " << curl_easy_strerror(res) << std::endl;
+        fclose(fp);
+        curl_easy_cleanup(curl);
+        return false;
+    }
+
+    fclose(fp);
+    curl_easy_cleanup(curl);
+
+    fp = fopen(filename.c_str(), "rb");
+    if (!fp) {
+        std::cerr << "Error opening the file for verification." << std::endl;
+        return false;
+    }
+    fseek(fp, 0, SEEK_END);
+    long fileSize = ftell(fp);
+    fclose(fp);
+
+    if (fileSize == 0) {
+        std::cerr << "The downloaded file is empty." << std::endl;
+        return false;
+    }
+
+    std::cout << "Download completed." << std::endl;
+    return true;
+}
+
+int progressCallback(void *clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t, curl_off_t) {
+    ProgressData* progressData = static_cast<ProgressData*>(clientp);
+    if (!progressData) return 0;
+
+    double percentage = (dltotal > 0) ? (static_cast<double>(dlnow) / static_cast<double>(dltotal)) * 100.0 : 0.0;
+
+    auto currentTime = std::chrono::steady_clock::now();
+    double deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - std::chrono::time_point<std::chrono::steady_clock>(std::chrono::milliseconds(static_cast<long long>(progressData->lastTime)))).count() / 1000.0;
+    double downloadSpeed = (deltaTime > 0) ? (static_cast<double>(dlnow) - progressData->downloaded) / deltaTime / (1024.0 * 1024.0) : 0.0;
+
+    progressData->downloaded = static_cast<double>(dlnow);
+    progressData->lastTime = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(currentTime.time_since_epoch()).count());
+
+    std::cout << "Downloading " << percentage << "% | MB/s: " << downloadSpeed << "\r";
+    return 0;
+}
+
+bool createDirectory(const std::string &path) {
+    struct stat info;
+
+    if (stat(path.c_str(), &info) != 0) {
+        if (mkdir(path.c_str(), 0700) != 0) {
+            std::cerr << "Error al crear el directorio: " << path << std::endl;
+            return false;
+        }
+    } else if (!(info.st_mode & S_IFDIR)) {
+        std::cerr << path << " ya existe pero no es un directorio" << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+int setupChrootuxConfig() {
+    std::string homeDir = getenv("HOME");
+    std::string configDir = homeDir + "/.config/Chrootux";
+    std::string configFile = configDir + "/local.conf";
+
+    if (access(configDir.c_str(), F_OK) == -1) {
+        std::cout << "El directorio Chrootux no existe. Creando el directorio..." << std::endl;
+        if (createDirectory(configDir)) {
+            std::cout << "Directorio Chrootux creado con éxito." << std::endl;
+        } else {
+            std::cerr << "Hubo un error al crear el directorio Chrootux." << std::endl;
+            return -1;
+        }
+    }
+
+    if (access(configFile.c_str(), F_OK) == -1) {
+        std::cout << "El archivo local.conf no existe. Creando el archivo..." << std::endl;
+
+        std::ofstream outFile(configFile);
+        if (outFile.is_open()) {
+            outFile << "# Chrootux Config\n\n";
+            outFile << "machines_folder=\"~/machines\"\n";
+            outFile.close();
+            std::cout << "El archivo local.conf se creó correctamente." << std::endl;
+        } else {
+            std::cerr << "Hubo un error al crear el archivo local.conf." << std::endl;
+            return -2;
+        }
+    } else {
+        std::cout << "El archivo local.conf ya existe." << std::endl;
+    }
+
+    return 1;
+}
 
 int getTerminalWidth() {
     winsize w;
