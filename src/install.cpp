@@ -65,7 +65,7 @@ InstallResult install(const std::string& archost) {
             {"Arch-Linux", "https://github.com/termux/proot-distro/releases/download/v4.22.1/archlinux-x86_64-pd-v4.22.1.tar.xz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/x86_64/alpine-minirootfs-3.21.3-x86_64.tar.gz"},
             {"Kali-Linux-Minimal", "https://kali.download/nethunter-images/current/rootfs/kali-nethunter-rootfs-minimal-amd64.tar.xz"},
-            //{"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-x86_64-pd-v4.7.0.tar.xz"}, Not working now
+            {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.7.0/debian-bookworm-x86_64-pd-v4.7.0.tar.xz"},
             {"Chimera Linux","https://github.com/termux/proot-distro/releases/download/v4.16.0/chimera-x86_64-pd-v4.16.0.tar.xz"},
             {"Ubuntu Noble", "https://cdimage.ubuntu.com/ubuntu-base/releases/noble/release/ubuntu-base-24.04.2-base-amd64.tar.gz"},
             {"Fedora", "https://github.com/termux/proot-distro/releases/download/v4.15.0/fedora-x86_64-pd-v4.15.0.tar.xz"}
