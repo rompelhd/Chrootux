@@ -22,8 +22,6 @@ InstallResult install(const std::string& archost);
 
 int showMenu(const std::vector<OperatingSystem>& osList);
 
-bool downloadFile(const std::string& url, const std::string& filename);
-
 std::pair<std::string, bool> extractArchive(const std::string& filename, const std::string& outputDirectory);
 
 void AutoCommands(const std::string& name, const std::string& outputDir);
