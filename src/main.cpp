@@ -1,7 +1,7 @@
 #include <sys/wait.h>
 #include <string>
 #include <iostream>
-#include <unistd.h> // For fork(), exec(), chroot(), open(), close()
+#include <unistd.h> // For fork(), exec(), chroot()
 #include <vector>
 #include <sys/stat.h> // For mkdir()
 #include <fstream>
@@ -10,7 +10,8 @@
 #include <string>
 #include <dirent.h>
 #include <filesystem>
-#include <fcntl.h>     // For O_WRONLY and other flags the open()
+#include <fcntl.h>     // Para O_WRONLY y otros flags de open()
+#include <unistd.h>    // Para open(), close(), fork(), etc.
 
 #include <thread>
 #include <sys/mount.h> // For mount(), unmount()
@@ -627,6 +628,8 @@ void check_and_add_hwmon_mounts(const std::string& ROOTFS_DIR, std::vector<Mount
 
 int main(int argc, char *argv[]) {
     system("clear");
+
+    setupChrootuxConfig();
 
     snowtest();
 
