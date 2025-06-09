@@ -25,18 +25,14 @@
 #include <cerrno>
 #include <sys/sysmacros.h>
 
-#ifndef SYS_pivot_root
-#define SYS_pivot_root 155
+#ifndef SYS_pivot_root                                                                               #define SYS_pivot_root 155
 #endif
 
 #ifndef SYS_unshare
 #define SYS_unshare 272
 #endif
 
-namespace fs = std::filesystem;
-
-std::string ROOTFS_DIR;
-
+namespace fs = std::filesystem;                                                                                                                                                                           std::string ROOTFS_DIR;                                                                              
 bool createDevNode(const std::string& path, mode_t mode, int major_num, int minor_num) {
     if (mknod(path.c_str(), mode, makedev(major_num, minor_num)) != 0) {
         std::cerr << "Error creando " << path << ": " << strerror(errno) << "\n";
@@ -45,12 +41,10 @@ bool createDevNode(const std::string& path, mode_t mode, int major_num, int mino
     chmod(path.c_str(), mode);
     return true;
 }
-
-void setupMinimalDev(const std::string& devPath) {
+                                                                                                     void setupMinimalDev(const std::string& devPath) {
     if (mount("none", devPath.c_str(), "tmpfs", 0, "mode=755") != 0) {
         std::cerr << "Error montando tmpfs en " << devPath << ": " << strerror(errno) << "\n";
-        return;
-    }
+        return;                                                                                          }
 
     std::vector<std::tuple<std::string, mode_t, int, int>> devNodes = {
         {"/null",    S_IFCHR | 0666, 1, 3},
@@ -67,8 +61,7 @@ void setupMinimalDev(const std::string& devPath) {
     std::string ptsPath = devPath + "/pts";
     mkdir(ptsPath.c_str(), 0755);
     if (mount("devpts", ptsPath.c_str(), "devpts", 0, nullptr) != 0) {
-        std::cerr << "Error montando devpts en " << ptsPath << ": " << strerror(errno) << "\n";
-    }
+        std::cerr << "Error montando devpts en " << ptsPath << ": " << strerror(errno) << "\n";          }
 }
 
 void cleanupDevFiles(const std::string& devPath) {
@@ -511,7 +504,6 @@ std::string select_rootfs_dir(const std::string& machines_folder) {
 }
 
 int performInstall(const std::string& arch) {
-    checkRoot();
 
     auto installResult = install(arch);
     if (installResult.name.empty() || installResult.url.empty()) {
@@ -627,6 +619,8 @@ void check_and_add_hwmon_mounts(const std::string& ROOTFS_DIR, std::vector<Mount
 }
 
 int main(int argc, char *argv[]) {
+    checkRoot();
+
     system("clear");
 
     setupChrootuxConfig();
@@ -670,7 +664,6 @@ int main(int argc, char *argv[]) {
             usage();
             return 0;
         } else if (arg1 == "-i") {
-            checkRoot();
             int terminalWidth = getTerminalWidth();
             (void)terminalWidth;
             machinesOn();
