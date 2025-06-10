@@ -25,7 +25,8 @@
 #include <cerrno>
 #include <sys/sysmacros.h>
 
-#ifndef SYS_pivot_root                                                                               #define SYS_pivot_root 155
+#ifndef SYS_pivot_root 
+#define SYS_pivot_root 155
 #endif
 
 #ifndef SYS_unshare
@@ -41,7 +42,8 @@ bool createDevNode(const std::string& path, mode_t mode, int major_num, int mino
     chmod(path.c_str(), mode);
     return true;
 }
-                                                                                                     void setupMinimalDev(const std::string& devPath) {
+
+void setupMinimalDev(const std::string& devPath) {
     if (mount("none", devPath.c_str(), "tmpfs", 0, "mode=755") != 0) {
         std::cerr << "Error montando tmpfs en " << devPath << ": " << strerror(errno) << "\n";
         return;                                                                                          }
