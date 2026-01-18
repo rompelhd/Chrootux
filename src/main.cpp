@@ -592,34 +592,6 @@ void create_simulated_hwmon() {
     closedir(dir);
 }
 
-void check_and_add_hwmon_mounts(const std::string& ROOTFS_DIR, std::vector<MountData>& mount_list) {
-    std::string SIMULATED_HWMON_DIR = "/data/data/com.termux/files/root-home/.config/Chrootux/";
-
-    if (!std::filesystem::exists(SIMULATED_HWMON_DIR)) {
-        std::cerr << "Error: Base directory does not exist: " << SIMULATED_HWMON_DIR << std::endl;
-        return;
-    }
-
-    bool hwmon_found = false;
-
-    for (const auto& entry : std::filesystem::directory_iterator(SIMULATED_HWMON_DIR)) {
-        std::string dir_name = entry.path().filename().string();
-
-        if (dir_name.find("hwmon") == 0 && std::filesystem::is_directory(entry)) {
-            std::cout << "Found " << SIMULATED_HWMON_DIR + "/" + dir_name << std::endl;
-
-            std::string mount_dir = ROOTFS_DIR + "/sys/class/hwmon/" + dir_name;
-
-            mount_list.push_back({SIMULATED_HWMON_DIR + "/" + dir_name, ROOTFS_DIR + "/sys/class/" + dir_name, ""});
-            hwmon_found = true;
-        }
-    }
-
-    if (!hwmon_found) {
-        std::cout << "No found dirs hwmon." << std::endl;
-    }
-}
-
 int main(int argc, char *argv[]) {
     checkRoot();
 
@@ -705,8 +677,6 @@ int main(int argc, char *argv[]) {
             {"proc", ROOTFS_DIR + "/proc", "proc"},
             //{"/sys", ROOTFS_DIR + "/sys", ""},
             };
-
-        //check_and_add_hwmon_mounts(ROOTFS_DIR, mount_list); only termux
 
         mounting(mount_list);
 
