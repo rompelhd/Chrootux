@@ -33,6 +33,30 @@
 #define SYS_unshare 272
 #endif
 
+struct MountOptions {
+    std::vector<std::string> mounts; // {"proc", "sys", "dev"}
+    bool emulate_dev = false;         // create /dev if dev no -m
+};
+
+std::vector<MountData> buildMountList(const std::string& rootfs_dir, const MountOptions& options) {
+    std::vector<MountData> mount_list;
+
+    for (const auto& m : options.mounts) {
+        if (m == "proc") {
+            mount_list.push_back({"proc", rootfs_dir + "/proc", "proc"});
+        } else if (m == "sys") {
+            mount_list.push_back({"sysfs", rootfs_dir + "/sys", "sysfs"});
+        } else if (m == "dev") {
+            mount_list.push_back({"none", rootfs_dir + "/dev", "devtmpfs"});
+        } else {
+            std::cerr << "Unknown mount type: " << m << std::endl;
+        }
+    }
+
+    return mount_list;
+}
+
+
 namespace fs = std::filesystem;                                                                                                                                                                           std::string ROOTFS_DIR;                                                                              
 bool createDevNode(const std::string& path, mode_t mode, int major_num, int minor_num) {
     if (mknod(path.c_str(), mode, makedev(major_num, minor_num)) != 0) {
@@ -132,7 +156,8 @@ v0.3.7                                      Tool Written By Rompelhd     __| ". 
 }
 
 void usage() {
-    std::cout << "\n" << Colours::purpleColour << "Usage: chrootux [OPTIONS] [COMMANDS]\n\n"
+    std::cout << "\n" << Colours::purpleColour 
+              << "Usage: chrootux [OPTIONS] [COMMANDS]\n\n"
               << "Options:\n"
               << "  -i INFO               Current information about the chroot\n"
               << "  -c CREATE             Allows the creation of a user\n"
@@ -141,8 +166,11 @@ void usage() {
               << "  -u UPDATE             Update the selected chroot\n"
               << "  -h HELP               Show this help\n"
               << "  -d [ARCH]             Open menu to download distros\n"
-              << "                        If ARCH is provided, list distros for that architecture\n\n"
+              << "                        If ARCH is provided, list distros for that architecture\n"
               << "  -ka                   Kill all: Unmount everything and terminate all chrootux processes.\n"
+              << "  -m MOUNTS             Comma-separated list of mounts to activate inside the chroot\n"
+              << "                        Example: -m proc,sys,dev\n"
+              << "                        Available mounts: proc, sys, dev\n\n"
               << "Warning, use of this script is at your own risk.\n"
               << "I am not responsible for your wrongdoings.\n"
               << Colours::endColour << std::endl;
@@ -478,10 +506,8 @@ int main(int argc, char *argv[]) {
     };
 
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
-
     int randomIndex = std::rand() % phrases.size();
     Phrase randomPhrase = phrases[randomIndex];
-
     printBanner(randomPhrase.part1, randomPhrase.part2);
 
     // EnvVariables
@@ -499,70 +525,75 @@ int main(int argc, char *argv[]) {
 
     checkMachinesFolder();
 
-    if (argc > 1) {
-        std::string arg1 = argv[1];
+    MountOptions options;
+    bool runCommand = false;
 
-        if (arg1 == "-h" || arg1 == "--help") {
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+
+        if (arg == "-h" || arg == "--help") {
             usage();
             return 0;
-        } else if (arg1 == "-i") {
+        } else if (arg == "-i") {
             int terminalWidth = getTerminalWidth();
             (void)terminalWidth;
             machinesOn();
             return 0;
-        } else if (arg1 == "--debug") {
+        } else if (arg == "--debug") {
             bool debugMode = true;
             (void)debugMode;
             std::cout << "Debug mode enabled." << std::endl;
-        } else if (arg1 == "-ka" || arg1 == "--killall") {
+        } else if (arg == "-ka" || arg == "--killall") {
             std::cout << "Terminating chroot sessions and unmounting systems..." << std::endl;
             UnmountAll(machines_folder);
             return 0;
-        } else if (arg1 == "-d") {
-            if (argc > 2) {
-                std::string arch = argv[2];
-
-                return performInstall(arch);
-                return 1;
-
+        } else if (arg == "-d") {
+            std::string arch = (i + 1 < argc) ? argv[i + 1] : archchecker();
+            return performInstall(arch);
+        } else if (arg == "-m") {
+            if (i + 1 < argc) {
+                std::string mounts_str = argv[i + 1];
+                i++;
+                size_t pos = 0;
+                while ((pos = mounts_str.find(',')) != std::string::npos) {
+                    options.mounts.push_back(mounts_str.substr(0, pos));
+                    mounts_str.erase(0, pos + 1);
+                }
+                if (!mounts_str.empty()) options.mounts.push_back(mounts_str);
             } else {
-                std::string arch = archchecker();
-                std::cout << "[W] The host architecture is automatically detected.\nYou can specify one manually with: -d [architecture]\n";
-                return performInstall(arch);
+                std::cerr << "Error: -m requires a comma-separated list of mounts (proc,sys,dev)\n";
                 return 1;
             }
         } else {
-            std::cerr << "Unknown option: " << arg1 << std::endl;
+            std::cerr << "Unknown option: " << arg << std::endl;
             usage();
             return 1;
         }
-    } else {
-        std::string ROOTFS_DIR = select_rootfs_dir(machines_folder);
-        std::cout << ROOTFS_DIR << std::endl;
+    }
 
-        std::vector<MountData> mount_list = {
-            //{"none", ROOTFS_DIR + "/dev", "devtmpfs"},
-            {"proc", ROOTFS_DIR + "/proc", "proc"},
-            //{"/sys", ROOTFS_DIR + "/sys", ""},
-            };
+    std::string ROOTFS_DIR = select_rootfs_dir(machines_folder);
+    std::cout << ROOTFS_DIR << std::endl;
 
-        mounting(mount_list);
+    if (std::find(options.mounts.begin(), options.mounts.end(), "dev") == options.mounts.end()) {
+        options.emulate_dev = true;
+    }
 
-        std::string devRoot = ROOTFS_DIR + "/dev";
-        setupMinimalDev(devRoot);
+    std::vector<MountData> mount_list = buildMountList(ROOTFS_DIR, options);
+    mounting(mount_list);
 
-        bool pivot_root_supported = check_pivot_root();
-        bool unshare_supported = check_unshare();
+    if (options.emulate_dev) {
+        setupMinimalDev(ROOTFS_DIR + "/dev");
+    }
 
-        if (pivot_root_supported && unshare_supported) {
-            chrootAndLaunchShellUnsecure(ROOTFS_DIR, mount_list);
-        } else {
-            chrootAndLaunchShellUnsecure(ROOTFS_DIR, mount_list);
-        }
+    bool pivot_root_supported = check_pivot_root();
+    bool unshare_supported = check_unshare();
 
-        teardownMinimalDev(devRoot);
-        cleanupDevFiles(devRoot);
-        
-    };
+    chrootAndLaunchShellUnsecure(ROOTFS_DIR, mount_list);
+
+    if (options.emulate_dev) {
+        teardownMinimalDev(ROOTFS_DIR + "/dev");
+        cleanupDevFiles(ROOTFS_DIR + "/dev");
+    }
+
     return 0;
 }
