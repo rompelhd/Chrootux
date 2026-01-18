@@ -607,24 +607,49 @@ bool isMtedAM(const std::string& machines_folder) {
     return false;
 }
 
-void checkMachinesFolder() {
-    const char* home_dir = std::getenv("HOME");
-        if (home_dir != nullptr) {
-            std::string machines_folder = createMachinesFolderIfNotExists(home_dir);
-            if (machines_folder.empty()) {
-                std::cerr << "Error: creating or getting the 'machines' folder." << std::endl;
-            }
+int setupChrootuxConfig() {
+    std::string homeDir;
+    if (isTermux()) {
+        homeDir = "/data/data/com.termux/files/home";
+    } else {
+        const char* envHome = getenv("HOME");
+        if (!envHome) {
+            std::cerr << "Could not determine the HOME directory." << std::endl;
+            return -3;
+        }
+        homeDir = envHome;
+    }
 
-            unsigned long long rootFsid = getFilesystemID(machines_folder);
-            if (rootFsid != 0) {
-                checkMounts(machines_folder);
-            } else {
-                std::cerr << "It was not possible to obtain information on the assemblies for " << machines_folder << std::endl;
-            }
+    std::string configDir = homeDir + "/.config/Chrootux";
+    std::string configFile = configDir + "/local.conf";
+
+    if (!fs::exists(configDir)) {
+        std::cout << "Chrootux directory does not exist. Creating..." << std::endl;
+        if (createDirectory(configDir)) {
+            std::cout << "Chrootux directory created successfully." << std::endl;
         } else {
-            std::cerr << "The location of the home folder could not be obtained." << std::endl;
+            std::cerr << "Error creating the Chrootux directory." << std::endl;
+            return -1;
         }
     }
+
+    if (!fs::exists(configFile)) {
+        std::cout << "local.conf file does not exist. Creating..." << std::endl;
+        std::ofstream outFile(configFile);
+        if (outFile.is_open()) {
+            outFile << "# Chrootux Config\n\n";
+            outFile << "machines_folder=\"" << homeDir << "/machines\"\n";
+            outFile.close();
+            std::cout << "local.conf file created successfully." << std::endl;
+        } else {
+            std::cerr << "Error creating the local.conf file." << std::endl;
+            return -2;
+        }
+    }
+
+    return 1;
+}
+
 
 void killChrootProcesses(const std::string& chroot_path) {
     DIR* dir = opendir("/proc");
