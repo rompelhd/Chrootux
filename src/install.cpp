@@ -44,7 +44,7 @@ InstallResult install(const std::string& archost) {
             {"ParrotOS", "https://github.com/rompelhd/Parrotos/releases/download/1.0/ParrotOS-Core-arm.tar.xz"},
             {"Ubuntu Noble", "https://cdimage.ubuntu.com/ubuntu-base/releases/noble/release/ubuntu-base-24.04.2-base-armhf.tar.gz"},
             {"OpenSUSE", "https://github.com/termux/proot-distro/releases/download/v4.6.0/opensuse-arm-pd-v4.6.0.tar.xz"},
-            {"Raspberry OS Lite Bullseye", "https://downloads.raspberrypi.com/raspios_lite_armhf/root.tar.xz"}
+            {"Raspberry OS Lite Trixie", "https://downloads.raspberrypi.com/raspios_lite_armhf/images/raspios_lite_armhf-2025-12-04/2025-12-04-raspios-trixie-armhf-lite.img.xz"}
         };
     } else if (archost == "aarch64" || archost == "arm64") {
         osList = {
@@ -58,7 +58,7 @@ InstallResult install(const std::string& archost) {
             {"Fedora", "https://github.com/termux/proot-distro/releases/download/v4.15.0/fedora-aarch64-pd-v4.15.0.tar.xz"},
             {"Chimera Linux", "https://github.com/termux/proot-distro/releases/download/v4.16.0/chimera-aarch64-pd-v4.16.0.tar.xz"},
             {"OpenSUSE", "https://github.com/termux/proot-distro/releases/download/v4.6.0/opensuse-aarch64-pd-v4.6.0.tar.xz"},
-            {"Raspberry OS Lite Bullseye", "https://downloads.raspberrypi.com/raspios_lite_arm64/root.tar.xz"}
+            {"Raspberry OS Lite Trixie", "https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2025-12-04/2025-12-04-raspios-trixie-arm64-lite.img.xz"}
         };
     } else if (archost == "x86_64") {
         osList = {
