@@ -391,89 +391,6 @@ void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vect
     }
 }
 
-/*void chrootAndLaunchShell(const std::string& ROOTFS_DIR, const std::vector<MountData>& mount_list) {
-    pid_t pid = fork();
-
-    if (pid == -1) {
-        perror("Error al crear el proceso hijo");
-        exit(EXIT_FAILURE);
-    }
-
-    if (pid == 0) {
-        if (unshare(CLONE_NEWPID | CLONE_NEWNS) == -1) {
-            perror("Error al crear un nuevo PID y Mount namespaces");
-            exit(EXIT_FAILURE);
-        }
-
-        pid_t child_pid = fork();
-
-        if (child_pid == -1) {
-            perror("Error al hacer fork en el nuevo namespace");
-            exit(EXIT_FAILURE);
-        }
-
-        if (child_pid == 0) {
-            if (mount("proc", "/proc", "proc", 0, NULL) == -1) {
-                perror("Error al montar /proc en el nuevo namespace");
-                exit(EXIT_FAILURE);
-            }
-
-            if (chroot(ROOTFS_DIR.c_str()) != 0) {
-                perror("Error al hacer chroot");
-                exit(EXIT_FAILURE);
-            }
-
-            if (chdir("/") != 0) {
-                perror("Error al cambiar el directorio de trabajo");
-                exit(EXIT_FAILURE);
-            }
-
-            if (mount("proc", "/proc", "proc", 0, NULL) == -1) {
-                perror("Error al montar /proc en el nuevo rootfs");
-                exit(EXIT_FAILURE);
-            }
-
-            std::string dbus_dir = "/run/dbus";
-            if (mkdir(dbus_dir.c_str(), 0755) != 0 && errno != EEXIST) {
-                perror("Error al crear el directorio /run/dbus");
-                exit(EXIT_FAILURE);
-            }
-
-            pid_t dbus_pid = fork();
-            if (dbus_pid == 0) {
-                int dev_null = open("/dev/null", O_WRONLY);
-                if (dev_null != -1) {
-                    dup2(dev_null, STDOUT_FILENO);
-                    dup2(dev_null, STDERR_FILENO);
-                    close(dev_null);
-                }
-
-                execl("/usr/bin/dbus-daemon", "dbus-daemon", "--system", "--nofork", "--nopidfile", (char*)NULL);
-                perror("Error al ejecutar dbus-daemon");
-                exit(EXIT_FAILURE);
-            }
-
-            sleep(1);
-
-            execl("/bin/bash", "bash", (char*)NULL);
-            perror("Error al ejecutar el shell interactivo de bash");
-            exit(EXIT_FAILURE);
-        } else {
-            int status;
-            waitpid(child_pid, &status, 0);
-
-            exit(status);
-        }
-    } else {
-        int status;
-        waitpid(pid, &status, 0);
-
-        for (const auto& entry : mount_list) {
-            unmountFileSystem(entry.target);
-        }
-    }
-}*/
-
 std::string select_rootfs_dir(const std::string& machines_folder) {
     std::vector<std::string> directories;
 
@@ -694,8 +611,7 @@ int main(int argc, char *argv[]) {
 
         teardownMinimalDev(devRoot);
         cleanupDevFiles(devRoot);
-
-        //chrootAndLaunchShell(ROOTFS_DIR, mount_list);
+        
     };
     return 0;
 }
