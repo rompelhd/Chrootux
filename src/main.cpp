@@ -460,55 +460,6 @@ int performInstall(const std::string& arch) {
     return 0;
 }
 
-void create_simulated_hwmon() {
-    const char* home_dir = std::getenv("HOME");
-    std::string SIMULATED_HWMON_DIR = std::string(home_dir) + "/.config/Chrootux/hwmon";
-
-    if (std::filesystem::exists(SIMULATED_HWMON_DIR)) {
-        std::cout << "Using existing simulated hwmon directory: " << SIMULATED_HWMON_DIR << std::endl;
-        return;
-    }
-
-    //std::filesystem::create_directories(SIMULATED_HWMON_DIR);
-
-    DIR* dir = opendir("/sys/class/thermal/");
-    if (dir == nullptr) {
-        std::cerr << "Error: Unable to open thermal directory." << std::endl;
-        return;
-    }
-
-    struct dirent* entry;
-    int hwmon_counter = 0;
-
-    while ((entry = readdir(dir)) != nullptr) {
-        std::string name(entry->d_name);
-        if (name.find("thermal_zone") != std::string::npos) {
-            std::string type_file = "/sys/class/thermal/" + name + "/type";
-            std::string temp_file = "/sys/class/thermal/" + name + "/temp";
-
-            std::ifstream type_stream(type_file);
-            std::string type;
-            std::getline(type_stream, type);
-
-            if (!type.empty() && std::filesystem::exists(temp_file)) {
-                std::string hwmon_dir = SIMULATED_HWMON_DIR + "/hwmon" + std::to_string(hwmon_counter++);
-                std::filesystem::create_directories(hwmon_dir);
-
-                std::ofstream name_file(hwmon_dir + "/name");
-                name_file << type << std::endl;
-
-                std::string temp1_input_link = hwmon_dir + "/temp1_input";
-                std::filesystem::create_symlink(temp_file, temp1_input_link);
-
-                std::ofstream temp1_label_file(hwmon_dir + "/temp1_label");
-                temp1_label_file << type << std::endl;
-
-            }
-        }
-    }
-    closedir(dir);
-}
-
 int main(int argc, char *argv[]) {
     checkRoot();
 
