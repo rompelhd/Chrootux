@@ -209,9 +209,9 @@ void AutoCommands(const std::string& name, const std::string& ROOTFS_DIR) {
     }
 
     std::vector<MountData> mount_list = {
-        {"/dev", ROOTFS_DIR + "/dev", ""},
-        {"/sys", ROOTFS_DIR + "/sys", ""},
-        {"/proc", ROOTFS_DIR + "/proc", ""}
+        //{"/dev", ROOTFS_DIR + "/dev", ""},
+        //{"/sys", ROOTFS_DIR + "/sys", ""},
+        //{"/proc", ROOTFS_DIR + "/proc", ""}
     };
 
     std::cout << "\nCommands to execute:\n";
