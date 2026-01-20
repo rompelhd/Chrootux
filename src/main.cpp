@@ -7,11 +7,9 @@
 #include <fstream>
 #include <random>
 #include <algorithm>
-#include <string>
 #include <dirent.h>
 #include <filesystem>
 #include <fcntl.h>     // Para O_WRONLY y otros flags de open()
-#include <unistd.h>    // Para open(), close(), fork(), etc.
 
 #include <thread>
 #include <sys/mount.h> // For mount(), unmount()
