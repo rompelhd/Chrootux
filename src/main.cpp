@@ -1,5 +1,14 @@
+#include <sys/prctl.h>          // [SECURITY] NO_NEW_PRIVS y caps
+#include <linux/capability.h>   // [SECURITY] drops CAP_SYS_ADMIN, etc.
+#include <signal.h>             // [SECURITY] kill()
+#include <sched.h>              // [SECURITY] unshare()
+
+#include <linux/seccomp.h>
+#include <linux/filter.h>
+#include <asm/unistd.h>
+
+
 #include <sys/wait.h>
-#include <string>
 #include <iostream>
 #include <unistd.h> // For fork(), exec(), chroot()
 #include <vector>
@@ -7,9 +16,10 @@
 #include <fstream>
 #include <random>
 #include <algorithm>
+#include <string>
 #include <dirent.h>
 #include <filesystem>
-#include <fcntl.h>     // Para O_WRONLY y otros flags de open()
+#include <fcntl.h>     // O_WRONLY and other flags open()
 
 #include <thread>
 #include <sys/mount.h> // For mount(), unmount()
@@ -30,6 +40,114 @@
 #ifndef SYS_unshare
 #define SYS_unshare 272
 #endif
+
+void applySeccompFilter() {
+
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
+        perror("PR_SET_NO_NEW_PRIVS");
+        exit(EXIT_FAILURE);
+    }
+
+    struct sock_filter filter[] = {
+
+        // Load syscall number
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+
+        // Namespace & FS escape
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_unshare, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_mount, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_umount2, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_pivot_root, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        // Privilege escalation
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setuid, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setgid, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setresuid, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setresgid, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_capset, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        // Kernel / hardware
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_reboot, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_kexec_load, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_init_module, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_delete_module, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        // Process inspection
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_ptrace, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        // Keyring
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_keyctl, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_add_key, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_request_key, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        // Information leaks
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_perf_event_open, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_bpf, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        // Devices
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_mknod, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_open_by_handle_at, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
+        // Default allow
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+    };
+
+    struct sock_fprog prog = {
+        .len = (unsigned short)(sizeof(filter) / sizeof(filter[0])),
+        .filter = filter,
+    };
+
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) {
+        perror("PR_SET_SECCOMP");
+        exit(EXIT_FAILURE);
+    }
+}
+
+// [SECURITY] DROP DANGEROUS CAPABILITIES
+void dropDangerousCaps() {
+    prctl(PR_CAPBSET_DROP, CAP_SYS_ADMIN, 0, 0, 0);
+    prctl(PR_CAPBSET_DROP, CAP_SYS_MODULE, 0, 0, 0);
+    prctl(PR_CAPBSET_DROP, CAP_SYS_PTRACE, 0, 0, 0);
+    prctl(PR_CAPBSET_DROP, CAP_SYS_BOOT, 0, 0, 0);
+    prctl(PR_CAPBSET_DROP, CAP_SYS_RAWIO, 0, 0, 0);
+    prctl(PR_SET_DUMPABLE, 0); // coredumps, gdb
+}
+
 
 struct MountOptions {
     std::vector<std::string> mounts; // {"proc", "sys", "dev"}
@@ -55,7 +173,7 @@ std::vector<MountData> buildMountList(const std::string& rootfs_dir, const Mount
 }
 
 
-namespace fs = std::filesystem;                                                                                                                                                                           std::string ROOTFS_DIR;                                                                              
+namespace fs = std::filesystem;
 bool createDevNode(const std::string& path, mode_t mode, int major_num, int minor_num) {
     if (mknod(path.c_str(), mode, makedev(major_num, minor_num)) != 0) {
         std::cerr << "Error creando " << path << ": " << strerror(errno) << "\n";
@@ -343,6 +461,16 @@ void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vect
     }
 
     if (pid == 0) {
+        // [SECURITY] UNSHARE NAMESPACES Y MOUNT PRIVADO
+        if (unshare(CLONE_NEWNS) != 0) {
+            perror("unshare(CLONE_NEWNS)");
+            exit(EXIT_FAILURE);
+        }
+
+        if (mount(nullptr, "/", nullptr, MS_REC | MS_PRIVATE, nullptr) != 0) {
+            perror("mount MS_PRIVATE");
+            exit(EXIT_FAILURE);
+        }
 
         if (chroot(ROOTFS_DIR.c_str()) != 0) {
             perror("Error while chrooting");
@@ -354,56 +482,39 @@ void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vect
             exit(EXIT_FAILURE);
         }
 
-        std::string dbus_dir = "/run/dbus";
-        if (mkdir(dbus_dir.c_str(), 0755) != 0 && errno != EEXIST) {
-            perror("Error when creating the /run/dbus directory");
+        // [SECURITY] NO_NEW_PRIVS
+        if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
+            perror("PR_SET_NO_NEW_PRIVS");
             exit(EXIT_FAILURE);
         }
 
-        pid_t dbus_pid = fork();
-        if (dbus_pid == 0) {
-            int dev_null = open("/dev/null", O_WRONLY);
-            if (dev_null == -1) {
-                perror("Error opening /dev/null");
-                exit(EXIT_FAILURE);
-            }
-            dup2(dev_null, STDOUT_FILENO);
-            close(dev_null);
+        // [SECURITY] SECCOMP FILTER
+        applySeccompFilter();
 
-            if (execl("/usr/bin/dbus-daemon", "dbus-daemon", "--system", "--nofork", "--nopidfile", (char *)NULL) == -1) {
-                exit(EXIT_FAILURE);
-            }
-        } else if (dbus_pid > 0) {
-            std::cout << "\n";
-            ChrootingTime();
-            std::cout << "\n";
+        // [SECURITY] DROP DANGEROUS CAPABILITIES
+        dropDangerousCaps();
 
-            pid_t shell_pid = fork();
-            if (shell_pid == 0) {
-                std::vector<std::string> shells = {"/bin/bash", "/bin/ash", "/bin/sh"};
+        std::cout << "\n";
+        ChrootingTime();
+        std::cout << "\n";
 
-                for (const auto& shell : shells) {
-                    if (access(shell.c_str(), X_OK) == 0) {
-                        execl(shell.c_str(), shell.c_str(), (char *)NULL);
-                    }
+        pid_t shell_pid = fork();
+        if (shell_pid == 0) {
+            std::vector<std::string> shells = {"/bin/bash", "/bin/ash", "/bin/sh"};
+
+            for (const auto& shell : shells) {
+                if (access(shell.c_str(), X_OK) == 0) {
+                    execl(shell.c_str(), shell.c_str(), (char *)NULL);
                 }
-
-                perror("An executable shell (bash, ash, sh) could not be found.");
-                exit(EXIT_FAILURE);
-            } else if (shell_pid > 0) {
-                int shell_status;
-                waitpid(shell_pid, &shell_status, 0);
-            } else {
-                perror("Error creating child process for shell");
-                exit(EXIT_FAILURE);
             }
 
-            if (kill(dbus_pid, SIGTERM) == -1) {
-                perror("Error terminating dbus-daemon");
-                exit(EXIT_FAILURE);
-            }
+            perror("An executable shell (bash, ash, sh) could not be found.");
+            exit(EXIT_FAILURE);
+        } else if (shell_pid > 0) {
+            int shell_status;
+            waitpid(shell_pid, &shell_status, 0);
         } else {
-            perror("Error creating child process for dbus-daemon");
+            perror("Error creating child process for shell");
             exit(EXIT_FAILURE);
         }
     } else {
@@ -416,6 +527,7 @@ void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vect
         }
     }
 }
+
 
 std::string select_rootfs_dir(const std::string& machines_folder) {
     std::vector<std::string> directories;
