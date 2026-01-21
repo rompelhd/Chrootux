@@ -41,6 +41,13 @@
 #define SYS_unshare 272
 #endif
 
+// for arm64 termux
+#ifndef __NR_mknod
+#if defined(__aarch64__)
+#define __NR_mknod 133
+#endif
+#endif
+
 void applySeccompFilter() {
 
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
