@@ -74,17 +74,17 @@ void applySeccompFilter() {
         BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
 
         // Privilege escalation
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setuid, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+        //BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setuid, 0, 1),
+        //BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
 
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setgid, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+        //BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setgid, 0, 1),
+        //BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
 
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setresuid, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+        //BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setresuid, 0, 1),
+        //BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
 
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setresgid, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+        //BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setresgid, 0, 1),
+        //BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
 
         BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_capset, 0, 1),
         BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
@@ -388,19 +388,19 @@ void mountChrootAndExecute(const std::string& ROOTFS_DIR, const std::vector<Moun
     pid_t pid = fork();
 
     if (pid == -1) {
-        perror("Error al crear el proceso hijo");
+        perror("Error creating child process");
         exit(EXIT_FAILURE);
     }
 
     if (pid == 0) {
 
         if (chroot(ROOTFS_DIR.c_str()) != 0) {
-            perror("Error al hacer chroot");
+            perror("Error when chrooting");
             exit(EXIT_FAILURE);
         }
 
         if (chdir("/") != 0) {
-            perror("Error al cambiar el directorio de trabajo");
+            perror("Error changing the working directory");
             exit(EXIT_FAILURE);
         }
 
@@ -409,11 +409,11 @@ void mountChrootAndExecute(const std::string& ROOTFS_DIR, const std::vector<Moun
             if (pid == 0) {
                 char* args[] = {const_cast<char*>(shell_path.c_str()), (char*)"-c", const_cast<char*>(cmd.c_str()), nullptr};
                 if (execvp(shell_path.c_str(), args) == -1) {
-                    perror("Error al ejecutar el comando");
+                    perror("Error executing command");
                     exit(EXIT_FAILURE);
                 }
             } else if (pid < 0) {
-                perror("Error al crear un proceso hijo");
+                perror("Error creating a child process");
                 exit(EXIT_FAILURE);
             } else {
                 int status;
@@ -421,10 +421,10 @@ void mountChrootAndExecute(const std::string& ROOTFS_DIR, const std::vector<Moun
                 if (WIFEXITED(status)) {
                     int exit_status = WEXITSTATUS(status);
                     if (exit_status != 0) {
-                        std::cerr << "El comando \"" << cmd << "\" terminó con un estado de salida " << exit_status << std::endl;
+                        std::cerr << "The command \"" << cmd << "\" ended with a state of departure " << exit_status << std::endl;
                     }
                 } else {
-                    std::cerr << "El comando \"" << cmd << "\" terminó anormalmente" << std::endl;
+                    std::cerr << "The command \"" << cmd << "\" ended abnormally" << std::endl;
                 }
             }
         }
@@ -459,82 +459,93 @@ bool check_unshare() {
     return true;
 }
 
-void chrootAndLaunchShellUnsecure(const std::string& ROOTFS_DIR, const std::vector<MountData>& mount_list) {
+void chrootAndLaunchShellUnsecure(
+    const std::string& ROOTFS_DIR,
+    const std::vector<MountData>& mount_list
+) {
     pid_t pid = fork();
-
-    if (pid == -1) {
-        perror("Error creating child process");
+    if (pid < 0) {
+        perror("fork");
         exit(EXIT_FAILURE);
     }
 
     if (pid == 0) {
-        // [SECURITY] UNSHARE NAMESPACES Y MOUNT PRIVADO
-        if (unshare(CLONE_NEWNS) != 0) {
-            perror("unshare(CLONE_NEWNS)");
+        bool termux = isTermux();
+
+        if (!termux) {
+            if (unshare(CLONE_NEWNS | CLONE_NEWPID) != 0) {
+                perror("unshare(CLONE_NEWNS | CLONE_NEWPID)");
+                exit(EXIT_FAILURE);
+            }
+        } else {
+            if (unshare(CLONE_NEWNS) != 0) {
+                perror("unshare(CLONE_NEWNS)");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        pid_t inner = fork();
+        if (inner < 0) {
+            perror("fork (inner)");
             exit(EXIT_FAILURE);
         }
 
-        if (mount(nullptr, "/", nullptr, MS_REC | MS_PRIVATE, nullptr) != 0) {
-            perror("mount MS_PRIVATE");
-            exit(EXIT_FAILURE);
-        }
+        if (inner == 0) {
 
-        if (chroot(ROOTFS_DIR.c_str()) != 0) {
-            perror("Error while chrooting");
-            exit(EXIT_FAILURE);
-        }
+            if (mount(nullptr, "/", nullptr, MS_REC | MS_PRIVATE, nullptr) != 0) {
+                perror("mount MS_PRIVATE");
+                exit(EXIT_FAILURE);
+            }
 
-        if (chdir("/") != 0) {
-            perror("Error while changing the working directory");
-            exit(EXIT_FAILURE);
-        }
+            if (chroot(ROOTFS_DIR.c_str()) != 0) {
+                perror("chroot");
+                exit(EXIT_FAILURE);
+            }
 
-        // [SECURITY] NO_NEW_PRIVS
-        if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
-            perror("PR_SET_NO_NEW_PRIVS");
-            exit(EXIT_FAILURE);
-        }
+            if (chdir("/") != 0) {
+                perror("chdir");
+                exit(EXIT_FAILURE);
+            }
 
-        // [SECURITY] SECCOMP FILTER
-        applySeccompFilter();
-
-        // [SECURITY] DROP DANGEROUS CAPABILITIES
-        dropDangerousCaps();
-
-        std::cout << "\n";
-        ChrootingTime();
-        std::cout << "\n";
-
-        pid_t shell_pid = fork();
-        if (shell_pid == 0) {
-            std::vector<std::string> shells = {"/bin/bash", "/bin/ash", "/bin/sh"};
-
-            for (const auto& shell : shells) {
-                if (access(shell.c_str(), X_OK) == 0) {
-                    execl(shell.c_str(), shell.c_str(), (char *)NULL);
+            if (!termux) {
+                mkdir("/proc", 0555);
+                if (mount("proc", "/proc", "proc", 0, nullptr) != 0) {
+                    perror("mount /proc");
                 }
             }
 
-            perror("An executable shell (bash, ash, sh) could not be found.");
-            exit(EXIT_FAILURE);
-        } else if (shell_pid > 0) {
-            int shell_status;
-            waitpid(shell_pid, &shell_status, 0);
-        } else {
-            perror("Error creating child process for shell");
-            exit(EXIT_FAILURE);
-        }
-    } else {
-        int status;
-        waitpid(pid, &status, 0);
-        std::cout << "\n";
+            prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+            applySeccompFilter();
+            dropDangerousCaps();
 
-        for (const auto& entry : mount_list) {
-            unmountFileSystem(entry.target);
+            std::cout << "\n";
+            ChrootingTime();
+            std::cout << "\n";
+
+            std::vector<std::string> shells = {
+                "/bin/bash", "/bin/ash", "/bin/sh"
+            };
+
+            for (const auto& shell : shells) {
+                if (access(shell.c_str(), X_OK) == 0) {
+                    execl(shell.c_str(), shell.c_str(), (char*)nullptr);
+                }
+            }
+
+            perror("No shell found");
+            _exit(EXIT_FAILURE);
         }
+
+        waitpid(inner, nullptr, 0);
+        _exit(EXIT_SUCCESS);
+    }
+
+    waitpid(pid, nullptr, 0);
+
+    for (const auto& entry : mount_list) {
+        unmountFileSystem(entry.target);
     }
 }
-
 
 std::string select_rootfs_dir(const std::string& machines_folder) {
     std::vector<std::string> directories;
@@ -637,8 +648,9 @@ int main(int argc, char *argv[]) {
     setenv("DEVPTS_MOUNT", "/dev/pts", 1);
     setenv("TMPDIR", "/tmp", 1);
     setenv("TZ", "Europe/Madrid", 1);
-    setenv("LANGUAGE", "C", 1);
-    setenv("LANG", "C", 1);
+    setenv("LANG", "C.UTF-8", 1);
+    setenv("LANGUAGE", "C.UTF-8", 1);
+    setenv("LC_ALL", "C.UTF-8", 1);    
 
     checkMachinesFolder();
 
