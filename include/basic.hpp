@@ -56,6 +56,11 @@ extern std::string archost;
 
 std::string archchecker();
 
+
+std::string archoutinfo(const std::string& bin_path);
+const char* check_emulation(const char* arch, const char* archost);
+
+
 std::string extractDirectoryBefore(const std::string& path, const std::vector<std::string>& targets);
 
 bool checkTargetsMounted(const std::string& base_path, const std::string& dir);
