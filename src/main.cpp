@@ -7,12 +7,11 @@
 #include <linux/filter.h>
 #include <asm/unistd.h>
 
-
 #include <sys/wait.h>
 #include <iostream>
-#include <unistd.h> // For fork(), exec(), chroot()
+#include <unistd.h> // fork(), exec(), chroot()
 #include <vector>
-#include <sys/stat.h> // For mkdir()
+#include <sys/stat.h> // mkdir()
 #include <fstream>
 #include <random>
 #include <algorithm>
@@ -22,13 +21,14 @@
 #include <fcntl.h>     // O_WRONLY and other flags open()
 
 #include <thread>
-#include <sys/mount.h> // For mount(), unmount()
+#include <sys/mount.h> // mount(), unmount()
 
 #include <cstring>
 
 #include "../include/basic.hpp"
 #include "../include/install.hpp"
 #include "../include/snow-effect.hpp"
+#include "../include/emulation.hpp"
 
 #include <cerrno>
 #include <sys/sysmacros.h>
@@ -637,6 +637,7 @@ int main(int argc, char *argv[]) {
 
     MountOptions options;
     bool runCommand = false;
+    bool enableEmulation = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -653,6 +654,8 @@ int main(int argc, char *argv[]) {
             bool debugMode = true;
             (void)debugMode;
             std::cout << "Debug mode enabled." << std::endl;
+        } else if (arg == "--emulation") {
+            enableEmulation = true;
         } else if (arg == "-ka" || arg == "--killall") {
             std::cout << "Terminating chroot sessions and unmounting systems..." << std::endl;
             UnmountAll(machines_folder);
@@ -683,6 +686,16 @@ int main(int argc, char *argv[]) {
 
     std::string ROOTFS_DIR = select_rootfs_dir(machines_folder);
     std::cout << ROOTFS_DIR << std::endl;
+
+    if (enableEmulation) {
+        std::string host_arch   = archchecker();
+        std::string rootfs_arch = archoutinfo(ROOTFS_DIR + "/bin");
+
+        if (!setup_emulation(ROOTFS_DIR, rootfs_arch, host_arch)) {
+            std::cerr << "Emulation setup failed\n";
+            return 1;
+        }
+    }
 
     if (std::find(options.mounts.begin(), options.mounts.end(), "dev") == options.mounts.end()) {
         options.emulate_dev = true;
