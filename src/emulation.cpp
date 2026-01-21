@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sys/mount.h>
 #include <cerrno>
+#include <cstring>
 
 namespace fs = std::filesystem;
 
