@@ -650,7 +650,10 @@ int main(int argc, char *argv[]) {
     setenv("TZ", "Europe/Madrid", 1);
     setenv("LANG", "C.UTF-8", 1);
     setenv("LANGUAGE", "C.UTF-8", 1);
-    setenv("LC_ALL", "C.UTF-8", 1);    
+    setenv("LC_ALL", "C.UTF-8", 1);
+    unsetenv("LD_PRELOAD");
+    unsetenv("LD_AUDIT");
+    unsetenv("LD_DEBUG");
 
     checkMachinesFolder();
 
