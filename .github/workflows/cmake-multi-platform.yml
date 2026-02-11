@@ -30,7 +30,7 @@ jobs:
 
       - name: Build and install FTXUI
         run: |
-          git clone --branch master https://github.com/ArthurSonzogni/FTXUI.git /tmp/ftxui
+          git clone --branch main https://github.com/ArthurSonzogni/FTXUI.git /tmp/ftxui
           mkdir -p /tmp/ftxui/build
           cd /tmp/ftxui/build
           cmake -DCMAKE_BUILD_TYPE=Release ..
