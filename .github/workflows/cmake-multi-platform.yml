@@ -18,66 +18,101 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install cross-compilers and dependencies
+      - name: Setup multiarch repositories
         run: |
           sudo dpkg --add-architecture arm64
           sudo dpkg --add-architecture armhf
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main universe" | sudo tee /etc/apt/sources.list.d/arm64.list
+          echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble main universe" | sudo tee /etc/apt/sources.list.d/armhf.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main universe" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+          echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble-updates main universe" | sudo tee -a /etc/apt/sources.list.d/armhf.list
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential git \
-            gcc g++ gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+
+      - name: Install cross-compilers and dependencies
+        run: |
+          sudo apt-get install -y \
+            cmake build-essential git zip \
+            gcc g++ \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
             gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
-            libcurl4-openssl-dev libncurses-dev libarchive-dev zip \
+            libcurl4-openssl-dev libncurses-dev libarchive-dev \
             libcurl4-openssl-dev:arm64 libncurses-dev:arm64 libarchive-dev:arm64 \
             libcurl4-openssl-dev:armhf libncurses-dev:armhf libarchive-dev:armhf
 
-      - name: Build and install FTXUI
+      - name: Build FTXUI for ${{ matrix.platform }}
         run: |
-          git clone --branch main https://github.com/ArthurSonzogni/FTXUI.git /tmp/ftxui
-          mkdir -p /tmp/ftxui/build
-          cd /tmp/ftxui/build
-          cmake -DCMAKE_BUILD_TYPE=Release -DFTXUI_BUILD_SHARED=ON ..
-          cmake --build . --config Release
+          git clone --depth 1 --branch main https://github.com/ArthurSonzogni/FTXUI.git /tmp/ftxui-${{ matrix.platform }}
+          cd /tmp/ftxui-${{ matrix.platform }}
+          mkdir build && cd build
+          if [ "${{ matrix.platform }}" = "arm64" ]; then
+            cmake .. \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DFTXUI_BUILD_SHARED=ON \
+              -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
+              -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
+              -DCMAKE_SYSROOT=/usr/aarch64-linux-gnu \
+              -DCMAKE_FIND_ROOT_PATH=/usr/aarch64-linux-gnu \
+              -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu
+          elif [ "${{ matrix.platform }}" = "armhf" ]; then
+            cmake .. \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DFTXUI_BUILD_SHARED=ON \
+              -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
+              -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ \
+              -DCMAKE_SYSROOT=/usr/arm-linux-gnueabihf \
+              -DCMAKE_FIND_ROOT_PATH=/usr/arm-linux-gnueabihf \
+              -DCMAKE_INSTALL_PREFIX=/usr/arm-linux-gnueabihf
+          else
+            cmake .. \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DFTXUI_BUILD_SHARED=ON
+          fi
+          cmake --build . --config Release --parallel
           sudo cmake --install .
 
-      - name: Configure and build for ${{ matrix.platform }}
+      - name: Configure and build project for ${{ matrix.platform }}
         run: |
           mkdir -p build/${{ matrix.platform }}
           cd build/${{ matrix.platform }}
-
-          if [ "${{ matrix.platform }}" == "arm64" ]; then
-            cmake -DCMAKE_C_COMPILER=/usr/bin/aarch64-linux-gnu-gcc \
-                  -DCMAKE_CXX_COMPILER=/usr/bin/aarch64-linux-gnu-g++ \
-                  -DCMAKE_SYSROOT=/usr/aarch64-linux-gnu \
-                  -DCMAKE_FIND_ROOT_PATH=/usr/aarch64-linux-gnu \
-                  -DCMAKE_BUILD_TYPE=Release -S ../../ -B .
-          elif [ "${{ matrix.platform }}" == "armhf" ]; then
-            cmake -DCMAKE_C_COMPILER=/usr/bin/arm-linux-gnueabihf-gcc \
-                  -DCMAKE_CXX_COMPILER=/usr/bin/arm-linux-gnueabihf-g++ \
-                  -DCMAKE_SYSROOT=/usr/arm-linux-gnueabihf \
-                  -DCMAKE_FIND_ROOT_PATH=/usr/arm-linux-gnueabihf \
-                  -DCMAKE_BUILD_TYPE=Release -S ../../ -B .
+          if [ "${{ matrix.platform }}" = "arm64" ]; then
+            cmake ../.. \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
+              -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
+              -DCMAKE_SYSROOT=/usr/aarch64-linux-gnu \
+              -DCMAKE_FIND_ROOT_PATH=/usr/aarch64-linux-gnu \
+              -DCMAKE_PREFIX_PATH=/usr/aarch64-linux-gnu \
+              -DCMAKE_IGNORE_PATH=/usr/lib/x86_64-linux-gnu;/usr/include
+          elif [ "${{ matrix.platform }}" = "armhf" ]; then
+            cmake ../.. \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
+              -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ \
+              -DCMAKE_SYSROOT=/usr/arm-linux-gnueabihf \
+              -DCMAKE_FIND_ROOT_PATH=/usr/arm-linux-gnueabihf \
+              -DCMAKE_PREFIX_PATH=/usr/arm-linux-gnueabihf \
+              -DCMAKE_IGNORE_PATH=/usr/lib/x86_64-linux-gnu;/usr/include
           else
-            cmake -DCMAKE_BUILD_TYPE=Release -S ../../ -B .
+            cmake ../.. \
+              -DCMAKE_BUILD_TYPE=Release
           fi
+          cmake --build . --config Release --parallel $(nproc)
 
-          cmake --build . --config Release
-
-      - name: Verify binary existence
+      - name: Verify binary exists
         run: |
-          if [ ! -f build/${{ matrix.platform }}/Chrootux ]; then
-            echo "Error: Binary Chrootux not found!"
-            exit 1
-          fi
+          ls -l build/${{ matrix.platform }}/Chrootux || { echo "Binary not found!"; exit 1; }
 
-      - name: Fix binary permissions
+      - name: Make binary executable
         run: chmod +x build/${{ matrix.platform }}/Chrootux
 
       - name: Compress binary
         run: |
-          zip -j Chrootux-${{ matrix.platform }}.zip build/${{ matrix.platform }}/Chrootux
+          cd build/${{ matrix.platform }}
+          zip ../../Chrootux-${{ matrix.platform }}.zip Chrootux
 
-      - name: Upload binary as artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Chrootux-${{ matrix.platform }}
-          path: build/${{ matrix.platform }}/Chrootux-${{ matrix.platform }}.zip
+          path: Chrootux-${{ matrix.platform }}.zip
+          if-no-files-found: error
