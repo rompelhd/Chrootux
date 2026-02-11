@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-25.04
 
     strategy:
       matrix:
@@ -20,12 +20,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies in a single command
+      - name: Install dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -y cmake build-essential \
+          sudo apt update && sudo apt install -y cmake build-essential \
             gcc g++ libcurl4-openssl-dev libncurses-dev libarchive-dev zip \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+            gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
+            ftxui
 
       - name: Enable verbose logging
         run: set -x
@@ -58,7 +59,7 @@ jobs:
 
       - name: Fix binary permissions
         run: chmod +x build/${{ matrix.platform }}/Chrootux
-
+        
       - name: Compress binary
         run: |
           zip -j Chrootux-${{ matrix.platform }}.zip build/${{ matrix.platform }}/Chrootux
