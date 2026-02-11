@@ -27,15 +27,6 @@ int getTerminalWidth();
 
 bool isTermux();
 
-void hightable(int totalWidth);
-
-size_t getRealLength(const std::string& str);
-
-void intertable(int totalWidth, const std::string& li_content, int terminalWidth);
-
-void lowtable(int totalWidth);
-
-
 extern std::string os_name;
 
 extern bool debug;

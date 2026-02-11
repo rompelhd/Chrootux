@@ -25,6 +25,11 @@
 #include <signal.h>
 #include <dirent.h>
 
+#include <ftxui/screen/screen.hpp>
+#include <ftxui/dom/elements.hpp>
+#include <ftxui/component/component.hpp>
+#include <ftxui/component/screen_interactive.hpp>
+
 namespace fs = std::filesystem;
 
 bool downloadFile(const std::string& url, const std::string& filename) {
@@ -209,93 +214,6 @@ std::string extractDirectoryBefore(const std::string& path, const std::vector<st
         }
     }
     return "";
-}
-
-void hightable(int totalWidth) {
-    std::string details = "Arch";
-    std::string action = "";
-
-    std::cout << Colours::blueColour << "╭─" << action << "[ " << Colours::yellowColour << details << Colours::blueColour << " ] ";
-    for (int i = 26; i < totalWidth - 1; ++i) {
-        std::cout << "─";
-    }
-    std::cout << "╮" << std::endl;
-
-    std::cout << Colours::blueColour << "│";
-    for (int i = 1; i < totalWidth - 1; ++i) {
-        std::cout << " ";
-    }
-    std::cout << Colours::blueColour << "│" << std::endl;
-}
-
-size_t getRealLength(const std::string& str) {
-    size_t length = 0;
-    bool inEscape = false;
-
-    for (char c : str) {
-        if (c == '\033') {
-            inEscape = true;
-        } else if (inEscape && c == 'm') {
-            inEscape = false;
-        } else if (!inEscape) {
-            length++;
-        }
-    }
-
-    return length;
-}
-
-void intertable(int totalWidth, const std::string& li_content, int terminalWidth) {
-    std::string output = "\033[34m│  [*] \033[33m" + li_content + "\033[0m";
-    size_t realLength = getRealLength(output);
-    size_t spacesNeeded = totalWidth - realLength;
-
-    std::string additionalSpacesFirst;
-    std::string additionalSpacesSecond;
-
-    if (realLength >= static_cast<size_t>(terminalWidth)) {
-        size_t lastSpace = output.rfind(' ', terminalWidth);
-
-        std::string firstLine = output.substr(0, lastSpace);
-        std::string secondLine = output.substr(lastSpace + 1);
-
-        size_t firstLineLength = getRealLength(firstLine);
-        size_t secondLineLength = getRealLength(secondLine);
-
-        size_t remainingSpacesFirst = totalWidth - firstLineLength + 1;
-        for (size_t i = 0; i < remainingSpacesFirst; ++i) {
-            additionalSpacesFirst += " ";
-        }
-
-        size_t remainingSpacesSecond = totalWidth - secondLineLength - 8;
-        for (size_t i = 0; i < remainingSpacesSecond; ++i) {
-            additionalSpacesSecond += " ";
-        }
-
-        std::cout << firstLine << additionalSpacesFirst << Colours::blueColour << "│" << std::endl;
-        std::cout << Colours::blueColour << "│      " << Colours::yellowColour << secondLine << additionalSpacesSecond << Colours::blueColour << "│" << std::endl;
-
-    } else {
-        std::cout << Colours::blueColour << output;
-        for (size_t i = 0; i < static_cast<size_t>(spacesNeeded); ++i) {
-            std::cout << " ";
-        }
-        std::cout << Colours::blueColour << " │" << std::endl;
-    }
-}
-
-void lowtable(int totalWidth) {
-    std::cout << Colours::blueColour << "│";
-    for (int i = 1; i < totalWidth - 1; ++i) {
-        std::cout << " ";
-    }
-    std::cout << "│" << std::endl;
-
-    std::cout << Colours::blueColour << "╰";
-    for (int i = 1; i < totalWidth - 1; ++i) {
-        std::cout << "─";
-    }
-    std::cout << "╯" << std::endl;
 }
 
 std::string os_name;
@@ -531,39 +449,42 @@ const char* check_emulation(const char* arch, const char* archost) {
     }
 }
 
+using namespace ftxui;
+
 void machinesOn() {
     std::vector<std::string> directories = getDirectories(machines_folder);
+    int terminalWidth = getTerminalWidth();
+    const int card_width = 30;
 
-    std::cout << "OS Name" << std::setw(30) << std::setw(15) << "Size" << std::setw(15) << "Path" << std::setw(30) << "Arch" << std::setw(15) << "Emulation" << std::endl;
-    std::cout << std::string(85, '-') << std::endl;
+    std::vector<Element> rows;
+    std::vector<Element> current_row;
+    int current_width = 0;
 
     for (const std::string& dir : directories) {
         std::filesystem::path fullPath(dir);
         std::string truncatedPath = fullPath.lexically_relative("/data/data/com.termux/files/").string();
 
-        std::filesystem::path etc_path = std::filesystem::path(dir) / "etc";
-        std::filesystem::path bin_path = std::filesystem::path(dir) / "bin";
+        std::filesystem::path etc_path = fullPath / "etc";
+        std::filesystem::path bin_path = fullPath / "bin";
 
         std::string os_name = "N/A";
         std::string size = "N/A";
         std::string arch = "N/A";
 
         if (exists(etc_path)) {
-            std::filesystem::path os_release_path = etc_path / "os-release";
+            auto os_release_path = etc_path / "os-release";
             if (exists(os_release_path)) {
                 try {
                     os_name = getNameField(os_release_path.string());
-                    if (os_name.empty()) {
-                        os_name = "NAME not found";
-                    }
-                } catch (const std::exception& e) {
+                    if (os_name.empty()) os_name = "NAME not found";
+                } catch (...) {
                     os_name = "Error reading file";
                 }
             } else {
-                os_name = "'os-release' not found";
+                os_name = "os-release missing";
             }
         } else {
-            os_name = "'etc' not found";
+            os_name = "etc missing";
         }
 
         size = formatSize(getDirectorySize(dir));
@@ -571,12 +492,33 @@ void machinesOn() {
         std::string archost = archchecker();
         const char* emulation = check_emulation(arch.c_str(), archost.c_str());
 
-        std::cout << Colours::greenColour << std::left << std::setw(18) << os_name
-                  << Colours::redColour << std::setw(15) << size
-                  << std::setw(30) << truncatedPath << arch << Colours::endColour
-                  << std::setw(30) << emulation << std::endl;
+        Element card = vbox({
+            text("OS: " + os_name) | bold,
+            text("Size: " + size),
+            text("Path: " + truncatedPath),
+            text("Arch: " + arch),
+            text("Emulation: " + std::string(emulation))
+        }) | border | color(Color::Blue);
+
+        if (current_width + card_width > terminalWidth) {
+            rows.push_back(hbox(current_row));
+            current_row.clear();
+            current_width = 0;
+        }
+
+        current_row.push_back(card);
+        current_width += card_width;
     }
-    std::cout << "\n" << std::endl;
+
+    if (!current_row.empty()) {
+        rows.push_back(hbox(current_row));
+    }
+
+    Element document = vbox(rows);
+
+    auto screen = Screen::Create(Dimension::Full(), Dimension::Fit(document));
+    Render(screen, document);
+    screen.Print();
 }
 
 void checkMounts(const std::string& base_path) {
