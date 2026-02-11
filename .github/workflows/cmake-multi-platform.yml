@@ -33,7 +33,8 @@ jobs:
           git clone --branch main https://github.com/ArthurSonzogni/FTXUI.git /tmp/ftxui
           mkdir -p /tmp/ftxui/build
           cd /tmp/ftxui/build
-          cmake -DCMAKE_BUILD_TYPE=Release ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DFTXUI_BUILD_SHARED=ON ..
+          cmake --build . --config Release
           sudo cmake --install .
 
       - name: Enable verbose logging
