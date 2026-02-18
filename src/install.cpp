@@ -37,7 +37,7 @@ InstallResult install(const std::string& archost) {
     std::vector<OperatingSystem> osList;
     if (archost == "arm" || archost == "armhf") {
         osList = {
-            {"Arch-Linux", "http://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz"},
+            {"Arch-Linux", "https://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/armhf/alpine-minirootfs-3.23.3-armhf.tar.gz"},
             {"Kali-Linux", "https://kali.download/nethunter-images/current/rootfs/kali-nethunter-rootfs-minimal-armhf.tar.xz"},
             {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.29.0/debian-trixie-arm-pd-v4.29.0.tar.xz"},
@@ -199,7 +199,7 @@ void AutoCommands(const std::string& name, const std::string& ROOTFS_DIR) {
     } else if (name == "Debian") {
         shell_path = "/bin/bash";
         commands = {"chmod 1777 /tmp", "echo nameserver 8.8.8.8 > /etc/resolv.conf"};
-    } else if (name == "Kali-Linux-Minimal") {
+    } else if (name == "Kali-Linux") {
         commands = {"chmod 1777 /tmp", "echo nameserver 8.8.8.8 > /etc/resolv.conf"};
     } else if (name == "Alpine-Linux") {
         shell_path = "/bin/ash";
