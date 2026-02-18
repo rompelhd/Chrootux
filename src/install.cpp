@@ -39,7 +39,7 @@ InstallResult install(const std::string& archost) {
         osList = {
             {"Arch-Linux", "http://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-armv7-latest.tar.gz"},
             {"Alpine-Linux", "https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/armhf/alpine-minirootfs-3.23.3-armhf.tar.gz"},
-            {"Kali-Linux", "https://kali.download/nethunter-images/current/rootfs/kalifs-armhf-minimal.tar.xz"},
+            {"Kali-Linux", "https://kali.download/nethunter-images/current/rootfs/kali-nethunter-rootfs-minimal-armhf.tar.xz"},
             {"Debian", "https://github.com/termux/proot-distro/releases/download/v4.29.0/debian-trixie-arm-pd-v4.29.0.tar.xz"},
             {"ParrotOS", "https://github.com/rompelhd/Parrotos/releases/download/1.0/ParrotOS-Core-arm.tar.xz"},
             {"Ubuntu-Noble", "https://cdimage.ubuntu.com/ubuntu-base/releases/noble/release/ubuntu-base-24.04.3-base-armhf.tar.gz"},
