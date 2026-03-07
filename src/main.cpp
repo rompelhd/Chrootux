@@ -1,12 +1,3 @@
-#include <sys/prctl.h>          // [SECURITY] NO_NEW_PRIVS y caps
-#include <linux/capability.h>   // [SECURITY] drops CAP_SYS_ADMIN, etc.
-#include <signal.h>             // [SECURITY] kill()
-#include <sched.h>              // [SECURITY] unshare()
-
-#include <linux/seccomp.h>
-#include <linux/filter.h>
-#include <asm/unistd.h>
-
 #include <sys/wait.h>
 #include <iostream>
 #include <unistd.h> // fork(), exec(), chroot()
@@ -29,132 +20,18 @@
 #include "../include/install.hpp"
 #include "../include/snow-effect.hpp"
 #include "../include/emulation.hpp"
+#include "../include/security.hpp"
 
 #include <cerrno>
 #include <sys/sysmacros.h>
 
-#ifndef SYS_pivot_root 
+#ifndef SYS_pivot_root
 #define SYS_pivot_root 155
 #endif
 
 #ifndef SYS_unshare
 #define SYS_unshare 272
 #endif
-
-// for arm64 termux
-#ifndef __NR_mknod
-#if defined(__aarch64__)
-#define __NR_mknod 133
-#endif
-#endif
-
-void applySeccompFilter() {
-
-    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
-        perror("PR_SET_NO_NEW_PRIVS");
-        exit(EXIT_FAILURE);
-    }
-
-    struct sock_filter filter[] = {
-
-        // Load syscall number
-        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
-
-        // Namespace & FS escape
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_unshare, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_mount, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_umount2, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_pivot_root, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        // Privilege escalation
-        //BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setuid, 0, 1),
-        //BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        //BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setgid, 0, 1),
-        //BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        //BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setresuid, 0, 1),
-        //BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        //BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setresgid, 0, 1),
-        //BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_capset, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        // Kernel / hardware
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_reboot, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_kexec_load, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_init_module, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_delete_module, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        // Process inspection
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_ptrace, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        // Keyring
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_keyctl, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_add_key, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_request_key, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        // Information leaks
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_perf_event_open, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_bpf, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        // Devices
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_mknod, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_open_by_handle_at, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        // Default allow
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-    };
-
-    struct sock_fprog prog = {
-        .len = (unsigned short)(sizeof(filter) / sizeof(filter[0])),
-        .filter = filter,
-    };
-
-    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) {
-        perror("PR_SET_SECCOMP");
-        exit(EXIT_FAILURE);
-    }
-}
-
-// [SECURITY] DROP DANGEROUS CAPABILITIES
-void dropDangerousCaps() {
-    prctl(PR_CAPBSET_DROP, CAP_SYS_ADMIN, 0, 0, 0);
-    prctl(PR_CAPBSET_DROP, CAP_SYS_MODULE, 0, 0, 0);
-    prctl(PR_CAPBSET_DROP, CAP_SYS_PTRACE, 0, 0, 0);
-    prctl(PR_CAPBSET_DROP, CAP_SYS_BOOT, 0, 0, 0);
-    prctl(PR_CAPBSET_DROP, CAP_SYS_RAWIO, 0, 0, 0);
-    prctl(PR_SET_DUMPABLE, 0); // coredumps, gdb
-}
-
 
 struct MountOptions {
     std::vector<std::string> mounts; // {"proc", "sys", "dev"}
@@ -244,7 +121,7 @@ void teardownMinimalDev(const std::string& devPath) {
 
     if (fs::exists(devPath) && isMounted(devPath.c_str())) {
         if (umount(devPath.c_str()) != 0) {
-            std::cerr << "Error desmontando " << devPath << ": " << strerror(errno) << std::endl;
+            std::cerr << "Error unmounting " << devPath << ": " << strerror(errno) << std::endl;
         } else {
             std::cout << "[" << Colours::greenColour << "✔" << Colours::endColour << "] Unmounted: " << devPath << std::endl;
         }
@@ -279,7 +156,7 @@ v0.3.7                                      Tool Written By Rompelhd     __| ". 
 }
 
 void usage() {
-    std::cout << "\n" << Colours::purpleColour 
+    std::cout << "\n" << Colours::purpleColour
               << "Usage: chrootux [OPTIONS] [COMMANDS]\n\n"
               << "Options:\n"
               << "  -i INFO               Current information about the chroot\n"
@@ -514,8 +391,7 @@ void chrootAndLaunchShellUnsecure(
                 }
             }
 
-            prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
-            applySeccompFilter();
+            //applySeccompFilter();
             dropDangerousCaps();
 
             std::cout << "\n";
