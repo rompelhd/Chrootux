@@ -391,7 +391,7 @@ void chrootAndLaunchShellUnsecure(
                 }
             }
 
-            //applySeccompFilter();
+            applySeccompFilter();
             dropDangerousCaps();
 
             std::cout << "\n";
