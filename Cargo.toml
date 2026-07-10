@@ -1,0 +1,24 @@
+[package]
+name = "chrootux"
+version = "1.0.0"
+edition = "2021"
+
+[workspace]
+members = ["crates/fakeker"]
+
+[dependencies]
+anyhow = "=1.0.95"
+chrono = "=0.4.39"
+flate2 = "=1.0.35"
+libc = "=0.2.169"
+nix = { version = "=0.29.0", features = ["mount", "sched", "fs", "hostname", "signal", "process", "user"] }
+rand = "=0.8.5"
+tar = "=0.4.43"
+walkdir = "=2.5.0"
+xz2 = "=0.1.7"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
