@@ -34,5 +34,5 @@
 <br/>
 
 <p align="center">
-    Chrootux is a powerful tool written in C++ that enables virtualization of architectures, making it ideal for embedded ARM devices and Android via Termux. With Chrootux, users can execute various Linux distributions seamlessly, expanding the capabilities of their devices.
+    Chrootux is a powerful tool written in Rust that enables virtualization of architectures, making it ideal for embedded ARM devices and Android via Termux. With Chrootux, users can execute various Linux distributions seamlessly, expanding the capabilities of their devices.
 </p>
